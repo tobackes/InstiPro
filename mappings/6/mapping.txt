@@ -1,0 +1,195 @@
+Inst						institute
+Forschungsinst				institute
+Teilinst					institute
+Institut					institute
+Institute					institute
+Seminar						institute
+Univ						university
+Universitat					university
+University					university
+Fernuniv					university	Fernuniv
+Fernuniversitat				university	Fernuniv
+Univers						university
+Mit							university	MIT
+Hsch						university
+Hochschule					university
+Tech Univ					university	TH
+Techn Univ					university	TH
+Th							university	TH
+Fachhochschule				university	FH
+Fachhsch					university	FH
+Fachhochsch					university	FH
+Fh							university	FH
+Polytech					university	FH
+Univ Appl Sci				university	FH
+Fachsch						university	FH
+Acad						academy
+Academy						academy
+Akademie					academy
+Akad						academy
+Bergakad					academy	Bergakad
+Museum						collection	Museum
+Staatssammlung				collection	Collection
+Sammlung					collection	Collection
+Sammlungen					collection	Collection
+Botanical Garden			collection	Garden
+Botanischer Garten			collection	Garden
+Collect						collection	Collection
+Herbarium					collection	Herbarium
+Bibliothek					collection	Library
+Bib							collection	Library
+Library						collection	Library
+Arch						collection	Archive
+Archiv						collection	Archive
+Archive						collection	Archive
+Lib							collection	Library
+Klin						clinic
+Clin						clinic
+Hop							clinic
+Infirm						clinic
+Klinik						clinic
+Klinikum					clinic
+Kliniken					clinic
+Hosp						clinic
+Krankenhaus					clinic
+Med Ctr						clinic	MedCent
+Spital						clinic
+Krankenanstalten			clinic
+Ambulanz					clinic	Ambulanz
+Praxis						clinic	Praxis
+Charite						clinic	Charite
+Lehrkrankenhaus				clinic	Lehrklin
+Lehrklin					clinic	Lehrklin
+Chair						chair
+Lehrstuhl					chair
+Ls							chair
+Professorship				chair
+Professur					chair
+Professor					chair
+Juniorprofessur				chair
+Seniorprofessur				chair
+Lab							lab
+Laboratory					lab
+Laboratorium				lab
+Labs						lab
+Labor						lab
+Einrichtung					lab
+Anstalt						lab
+Sternwarte					lab	Observ
+Observ						lab	Observ
+Station						lab	Station
+Planetarium					lab	Planetarium
+Fac							faculty
+Fak							faculty
+Fakultat					faculty
+Dekanat						faculty
+Fachbereich					field
+Fb							field
+Sect						field
+Sekt						field
+Sektion						field
+Dept						other
+Department					other
+Dep							other
+Abt							other
+Abteilung					other
+Dipartimento				other
+Div							other
+Branch						site
+Geschäftsstelle				site
+Campus						site
+Studienort					site
+Site						site
+Standort					site
+Aussenstelle				site
+Zweigstelle					site
+Fachgruppe					subfield
+Fachergruppe				subfield
+Fachergruppe				subfield
+Fachgebiet					subfield
+Area						subfield
+Fachrichtung				subfield
+Lehreinheit					subfield
+Forschungsgebiet			subfield
+Forschungsfeld				subfield
+Lehrgebiet					subfield
+Lehrbereich					subfield
+Anwendungsfeld				subfield
+Kompetenzfeld				subfield
+Forschungseinheit			subfield
+Arbeitseinheit				subfield
+Arbeitsgebiet				subfield
+Arbeitsbereich				subfield
+Bereich						subfield
+Fachteil					subject
+Unit						subject
+Forschungsstelle			subject
+Arbeitsstelle				subject
+Referat						subject
+Fach						subject
+Studiengang					subject
+Schwerpunkt					subject
+Werk						factory
+Werke						factory
+Foundry						factory
+Grp							community
+Group						community
+Gruppe						community
+Arbeitsgrp					community
+Arbeitsgruppe				community
+Ag							community
+Communities					community
+Panel						community	Panel
+Program						community	Program
+Board						community	Board
+Forschergruppe				community
+Forschungsgruppe			community
+Nachwuchsgruppe				community
+Arbeitskreis				community
+Projektgruppe				community
+Ctr							center
+Centre						center
+Center						center
+Cent						center
+Centrum						center
+Zent						center
+Zentrum						center
+Cluster						center
+Sch							college
+School						college
+Lehranstalt					college
+Coll						college
+College						college
+Graduate School				college	Gradschool
+Graduiertenschule			college	Gradschool
+Kolleg						college
+Agcy						agency
+Amt							agency
+Amtliche					agency
+Bundesamt					agency
+Landesamt					agency
+Forstamt					agency
+Directorate					agency	Directorate
+Commiss						agency	Commiss
+Registry					agency	Registry
+Netzwerk					association	Network
+Assoc						association
+Gesell						association
+Gesellschaft				association
+Gemeinschaft				association
+Consortium					association	Consortium
+Soc							association	Society
+Alliance					association	Alliance
+Verbund						association	Alliance
+Fdn							association	Foundation
+Stiftung					association	Foundation
+Org							association
+Verein						association	Club
+E.v.						association	Club
+Vereinigung					association
+Union						association
+Gmbh						company	Ltd
+Ltd							company	Ltd
+Corp						company	Corp
+Inc							company	Inc
+Aktiengesell				company	Corp

@@ -1,0 +1,49 @@
+{
+    "root_dir":     "",
+    "lat_file":     "mappings/4/lattice.db",
+    "viz_file":     "plots/semilattice.dot",
+    "typ_file":     "mappings/4/types.txt",
+    "con_file":     "mappings/4/constraints.txt",
+    "name_db":      "representations/4/institutions/dfg.db",
+    "feat_dir":     "features/",
+    "out_dir":      "output/dfg/",
+    "result_dir":   "results_top_level/",
+    "sums_db":      null,
+
+    "do_json":      false,
+    "do_results":   true,
+    "do_graph":     false,
+    "do_tree":      false,
+    "do_equiDB":    true,
+
+    "is_names":     false,
+    "aggregate":    false,
+
+    "only_rIDs":    true,
+    "no_none":      false,
+
+    "mode":         "run",
+    "same_file":    "features/similarities_same.txt",
+    "diff_file":    "features/similarities_diff.txt",
+
+    "shortcut":     true,
+
+    "smooth":       0.0000001,
+    "thr":          1.0,
+    "selfprob_fac": 0.1,
+    "min_pts":      2,
+    "num_rdm":      1,
+
+    "step":         1.0,
+    "max_size":     999999999,
+
+    "hack":         1000.0,
+
+    "thr_f":        "logi",
+
+    "eps":          0.03,
+    "z":            0.075,
+    "r":            0.075,
+
+    "tuning":       false
+}
