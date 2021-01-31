@@ -61,11 +61,11 @@ COUNTRY    = re.compile(r'Germany_|Ddr|Brd|Fed_Rep_Ger_|Ger_Dem_Rep_');
 # CLASS DEFINITIONS #####################################################################################################################
 
 class ADR:
-    def __init__(self,addr,city_,country_,postcode_,geo_cur):
+    def __init__(self,addr,city_,country_,postcode_,year,geo_cur):
         self.components = [None for i in range(_max_len_)];
         self.types      = [None for i in range(_max_len_)];
         self.street     = None;
-        self.number     = None;
+        self.number     = year;
         self.postcode   = None;
         self.city       = None;
         self.country    = None;
@@ -180,15 +180,15 @@ def work(Q,cur_out,con_out,cur_in):
             print('Could not get any further job from queue within 60s. Stopping work.');
         if page==None: break;
         sid, size  = page['_scroll_id'], len(page['hits']['hits']);
-        rows       = [(addr_obj['full_address'],None,doc['_id'],doc['_id']+'_'+addr_obj['addr_no'],addr_obj['city'],addr_obj['country'],addr_obj['zip']) for doc in page['hits']['hits'] for addr_obj in doc['_source']['addressInformation']['address']] if WOS else [(doc['_source']['ADDRESS_FULL'],int(doc['_source']['PK_KB_INST']),doc['_source']['WOS_ID'],doc['_id'],None,'Germany',None) for doc in page['hits']['hits']];
+        rows       = [(addr_obj['full_address'],None,doc['_id'],doc['_id']+'_'+addr_obj['addr_no'],addr_obj['city'],addr_obj['country'],addr_obj['zip'],doc['_source']['pub_info']['pubyear'] if 'pub_info' in doc['_souce'] and 'pubyear' in doc['_source']['pub_info']) for doc in page['hits']['hits'] for addr_obj in doc['_source']['addressInformation']['address']] if WOS else [(doc['_source']['ADDRESS_FULL'],int(doc['_source']['PK_KB_INST']),doc['_source']['WOS_ID'],doc['_id'],None,'Germany',None,None) for doc in page['hits']['hits']];
         objs       = [];
         mentionIDs = [];
         WOS_IDs    = [];
         IDs        = [];
         addrs      = [];
         insts      = [];
-        for addr, ID, WOS_ID, mentionID, city, country, postcode in rows:
-            obj = ADR(addr,city,country,postcode,cur_in);
+        for addr, ID, WOS_ID, mentionID, city, country, postcode, year in rows:
+            obj = ADR(addr,city,country,postcode,year,cur_in);
             objs.append(obj);
             WOS_IDs.append(WOS_ID);
             IDs.append(ID);
