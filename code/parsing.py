@@ -1,23 +1,19 @@
 #########################################################################################################################################
 # IMPORTS ###############################################################################################################################
-import sqlite3
 import re
-import sys
-import time
-import parsing
+import sqlite3
 #########################################################################################################################################
 # GLOBAL OBJECTS ########################################################################################################################
 
-_affiliation = sys.argv[1];
-
-typ_file = 'mappings/'+'6/'+'/types.txt';
-map_file = 'mappings/'+'6/'+'/mapping.txt';
-_out_db  = 'representations/'+'6/'+'representations/'+'test.db';
+mapping  = '6'; # This and the below should be overwritten when the programs run that imported this library
 geonames = 'resources/allCountries.db';
+typ_file = 'mappings/'       +mapping+'/types.txt';
+map_file = 'mappings/'       +mapping+'/mapping.txt';
 
-TYP = 0;
-STR = 1;
+con_in = sqlite3.connect(geonames);
+cur_in = con_in.cursor();
 
+TYP = 0; STR = 1;
 _str2type = { re.split(r'\t+',line.rstrip())[0]: re.split(r'\t+',line.rstrip())[1:] for line in open(map_file) };
 _level    = { line.split()[0]: int(line.split()[1]) for line in open(typ_file) };
 _type2str = dict();
@@ -31,11 +27,6 @@ for string in _str2type:
 for label in _type2str:
     _type2str[label] = sorted(_type2str[label],reverse=True); # So that longer matches are found first
 
-_con_in  = sqlite3.connect(geonames);
-_cur_in  = _con_in.cursor();
-_con_out = sqlite3.connect(_out_db)
-_cur_out = _con_out.cursor();
-
 streets      = ['Weg','Str','Pl','Platz','Chaussee','Allee','Gasse','Ring','POB','Rd','Road','Strasse','Straße','Street','Way','Damm','Ufer','Postfach','Steig'];
 street_regex = '^(?!([A-Z]-)?[0-9])[aA-zZ]{3,}_?('+'|'.join([variant for street in streets for variant in [street,street.lower(),street.upper()]])+')_?([0-9]{1,3}-)?[0-9]{0,3}[aA-hH]?_$';
 
@@ -44,15 +35,13 @@ STREET     = re.compile(street_regex);
 POSTCO     = re.compile(r'[0-9]{5}|[0-9]{4}');
 NUMBER     = re.compile(r'[0-9]+');
 REGEX      = {string:re.compile(r'\b'+string        +r'\b') for string in _str2type};
-REGEX_suff = {string:re.compile(      string.lower()+r'_') for string in _str2type if len(string)>=4};
+REGEX_suff = {string:re.compile(      string.lower()+r'_') for string in _str2type};
 REGEX_infi = {string:re.compile(      string) for string in _str2type};
 COUNTRY    = re.compile(r'Germany_|Ddr|Brd|Fed_Rep_Ger_|Ger_Dem_Rep_');
 
-_fields_reps = ['mentionID','wos_id','id','string','c1','t1','c2','t2','c3','t3','c4','t4','street','number','postcode','city','country'];
-
 #########################################################################################################################################
 # FUNCTIONS #############################################################################################################################
-'''
+
 def lookup(string,cur): # See if the component corresponds to a geographical entity - problem is that almost everything is a city or such
     freq = cur.execute("SELECT COUNT(DISTINCT geonameid) FROM alternatives WHERE alternative=?",(string,)).fetchall()[0][0];
     if freq > 0:
@@ -97,23 +86,31 @@ def classify(components,geo_cur): # Determine possible labels for each component
             labelling[component].append('address');
     for component in labelling:
         labelling[component] = clean(labelling[component]);
-    classified = [(labelling[component][0],component,) if len(labelling[component])==1 else decide(labelling[component],component) if len(labelling[component])>1 else investigate(component,[labelling[component_] for component_ in components_ if len(labelling[component_])>=1]) for component in components_];
+    classified = [];
+    for component in components_:
+        if len(labelling[component]) == 1:
+            classified += [(labelling[component][0],component,)];
+        elif len(labelling[component]) > 1:
+            classified += decide(labelling[component],component);
+        else:
+            classified += investigate(component,[labelling[component_] for component_ in components_ if len(labelling[component_])>=1]);
     return classified;
 
 def decide(labels,component): # Determine one label if multiple labels are proposed for one component
     if len(labels) > 1 and labels[-1] =='clinic' and _level[labels[-2]] >= _level['clinic'] and ('Klin_' in component or 'Clin_' in component):
         return (labels[-2],component,);
-    return (labels[-1],component,);
+    #TODO: Implement here a way to detect if there are maybe legitimitely multiple components and return them
+    return [(labels[-1],component,)];
 
 def investigate(component,all_components): # Determine a label for a component if no label was found so far by looking more closely or defaulting
     if NUMBER.search(component) or STREET.search(component) or POSTCO.search(component) or COUNTRY.search(component):
-        return ('address',component,);
+        return [('address',component,)];
     labels = [];
     for keyword in REGEX_suff:
         if REGEX_suff[keyword].search(component):
             labels.append(_str2type[keyword][0]);
     if len(labels) == 0:
-        return ('other' if len(all_components)>1 else 'other',component,);
+        return [('other' if len(all_components)>1 else 'other',component,)];
     return decide(labels,component);
 
 def normalize(component,label): # Prepare the output component representation and labelling in the desired way
@@ -126,30 +123,5 @@ def normalize(component,label): # Prepare the output component representation an
                 terms[i] = _str2type[string][1];
                 break;
     return (' '.join([term for term in terms if not term=='' or term==' '])).strip();
-'''
-def show(classified,minlen): # Print the output for testing and improvement
-    if len(set([label for label,component in classified if label!='address']))>=minlen:
-        print('-------------------------------------------------------------------------------------------------------------------\n','>>>',_affiliation);
-        print('-------------------------------------------------------------------------------------------------------------------');
-        for label,component in classified:
-            if label != 'address':
-                print(label,':  ',parsing.normalize(component.replace('_',' ').strip(),label));
-        print('-------------------------------------------------------------------------------------------------------------------\n');
 
-#########################################################################################################################################
-# SCRIPT ################################################################################################################################
-#t          = time.time();
-components = parsing.get_components(_affiliation);
-classified = parsing.classify(components,_cur_in);
-
-show(classified,0);
-
-compos = [el for label_component in [(parsing.normalize(component.replace('_',' ').strip(),label),label,) for label,component in classified if label != 'address'] for el in label_component];
-values = tuple([None,None,None,_affiliation]+[compos[i] if i < len(compos) else None for i in range(4*2)]+[None,None,None,None,None,None]);
-
-_cur_out.execute("CREATE TABLE IF NOT EXISTS representations(mentionID TEXT, wos_id TEXT, id INT, string TEXT, c1 TEXT, t1 TEXT, c2 TEXT, t2 TEXT, c3 TEXT, t3 TEXT, c4 TEXT, t4 TEXT, street TEXT, number TEXT, postcode TEXT, city TEXT, country TEXT, concomp INT)");
-_cur_out.execute("INSERT INTO representations VALUES("+','.join(('?' for i in range(len(values))))+")",values);
-_con_out.commit();
-_con_in.close();
-_con_out.close();
 #########################################################################################################################################

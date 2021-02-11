@@ -44,30 +44,7 @@ _max_len_           = 6;
 _min_component_len_ = 2;
 
 _fields_inst = ['mentionID','wos_id','id','string']+[typ.lower()+str(num) for typ in _types for num in range(1,_max_len_+1)]+['street','number','postcode','city','country'];
-
-#########################################################################################################################################
-# CLASS DEFINITIONS #####################################################################################################################
-
-class INST:
-    def __init__(self,postcode,city,country,street,number,components,types):
-        self.postcode   = postcode;
-        self.city       = city;
-        self.country    = country;
-        self.street     = street;
-        self.number     = number;
-        for typ in _types:
-            for j in range(1,_max_len_+1):
-                setattr(self,str(typ)+str(j),None);
-        for i in range(len(components)):
-            rep = list(get_rep(components[i],str(types[i])));
-            for j in range(len(rep)):
-                setattr(self,str(types[i])+str(j+1),rep[j]);
-        city_rep = list(get_rep(city,'city'));
-        for j in range(len(city_rep)):
-            setattr(self,'city'+str(j+1),city_rep[j]);
-    def show(self):
-        for attr in vars(self):
-            print(attr, getattr(self,attr));  
+_field2index = {_fields_inst[i]:i for i in range(len(_fields_inst))};
 
 #########################################################################################################################################
 # FUNCTIONS #############################################################################################################################
@@ -85,35 +62,41 @@ def get_rep(component,typ):
     parts   = [_transforms_[part.lower()] if part in _transforms_ else part.lower() for part in re.findall(r'\w+',component)] if component != None else [];
     parts   = [split for part in parts for split in (_splittings_[part] if part in _splittings_ else [part])];
     rep     = set([string for string in parts if len(string)>=_min_component_len_]) - _illegals_;
-    rep     = set([tup[1] for tup in sorted([(_counts_[typ][el],el) for el in rep])][:_max_len_]) if len(rep)>_max_len_ else rep;
-    rep     = set([el[0].upper()+el[1:].lower() for el in rep]);
+    rep     = [tup[1] for tup in sorted([(_counts_[typ][el],el) for el in rep])][:_max_len_] if len(rep)>_max_len_ else list(rep)+[None for i in range(_max_len_-len(rep))];
+    rep     = [el[0].upper()+el[1:].lower() if el != None else el for el in rep];
     return rep;
 
+def distribute(rows):
+    for mentionID,wos_id,inst_id,string,c1,t1,c2,t2,c3,t3,c4,t4,street,number,postcode,city,country,concomp in rows:
+        out_row      = [None for i in range(len(_fields_inst))];
+        out_row[:4]  = mentionID,wos_id,inst_id,string;
+        out_row[-5:] = street,number,postcode,city,country;
+        this_type  = None;
+        component  = '';
+        components = sorted([tup for tup in ((t1,c1),(t2,c2),(t3,c3),(t4,c4)) if not tup[0]==None]);
+        for next_type,next_comp in components:
+            if this_type == next_type:
+                component += ' '+next_comp; # in case one component label is used over multiple components
+            else: # new type or last iteration
+                if component != '': # first iteration
+                    out_row[_field2index[this_type+str(1)]:_field2index[this_type+str(1)]+_max_len_] = get_rep(component,this_type);
+                this_type = next_type;
+                component = next_comp;
+        if component != '': # first iteration
+            out_row[_field2index[this_type+str(1)]:_field2index[this_type+str(1)]+_max_len_] = get_rep(component,this_type);
+        yield out_row;
+
 def main():
-    rows      = _cur_in_.fetchmany(_scrollsize_);
-    size      = len(rows);
-    page_num  = 0; 
-    while (size > 0):
-        page_num  += 1;
-        objs       = [];
-        mentionIDs = [];
-        IDs        = [];
-        WOS_IDs    = [];
-        addrs      = [];
-        insts      = [];
-        for mentionID,wos_id,inst_id,string,c1,t1,c2,t2,c3,t3,c4,t4,street,number,postcode,city,country,concomp in rows:
-            inst = INST(postcode,city,country,street,number,(c1,c2,c3,c4),(t1,t2,t3,t4));
-            inst_id = compress([getattr(inst,typ+str(num)) for typ in _types for num in range(1,_max_len_+1)]) if subset=='wos' else inst_id;
-            insts.append(inst);
-            IDs.append(inst_id);
-            WOS_IDs.append(wos_id);
-            mentionIDs.append(mentionID);
-            addrs.append(string);
-        _cur_out_.executemany("INSERT INTO representations("+','.join(_fields_inst)+") VALUES("+', '.join(['?' for i in range(9+len(_types)*_max_len_)])+")",(tuple([mentionIDs[i],WOS_IDs[i],IDs[i],addrs[i]]+[getattr(insts[i],typ+str(num)) for typ in _types for num in range(1,_max_len_+1)]+[insts[i].street,insts[i].number,insts[i].postcode,insts[i].city,insts[i].country]) for i in range(len(insts))));
+    page_num = 0; 
+    while True:
+        page_num += 1;
+        rows = _cur_in_.fetchmany(_scrollsize_);
+        if len(rows) == 0:
+            break;
+        query = "INSERT INTO representations("+','.join(_fields_inst)+") VALUES("+', '.join(['?' for i in range(9+len(_types)*_max_len_)])+")";
+        _cur_out_.executemany(query,distribute(rows));
         _con_out_.commit();
         sys.stdout.write('...roughly '+str(100*page_num*_scrollsize_/_fullsize_)+'% done.'+'\r'); sys.stdout.flush();
-        rows = _cur_in_.fetchmany(_scrollsize_);
-        size = len(rows);
 
 #########################################################################################################################################
 # PREPARING #############################################################################################################################

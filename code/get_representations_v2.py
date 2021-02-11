@@ -7,16 +7,17 @@ import sys
 import time
 from collections import Counter
 import multiprocessing as MP
+import parsing
 #########################################################################################################################################
 # GLOBAL OBJECTS ########################################################################################################################
 
 mapping = sys.argv[1];
 WOS     = sys.argv[2].lower()=='wos';
 
-geonames = 'resources/allCountries.db';
 ADR_out  = 'representations/'+mapping+'/representations/'+['bielefeld','wos'][WOS]+'/';
-typ_file = 'mappings/'       +mapping+'/types.txt';
-map_file = 'mappings/'       +mapping+'/mapping.txt';
+#geonames = 'resources/allCountries.db';
+#typ_file = 'mappings/'       +mapping+'/types.txt';
+#map_file = 'mappings/'       +mapping+'/mapping.txt';
 
 gate       = 'svkowos.gesis.intra' if WOS else 'search.gesis.org/es-config/';
 addr_index = 'wos' if WOS else 'kb_institutions_bielefeld_addresses';
@@ -31,6 +32,7 @@ _fullsize_   = 100000000. if WOS else 6500000.;
 _scrollsize_ = 10000;
 _max_len_    = 4;
 
+'''
 TYP = 0; STR = 1; # The below are currently global shared objects, perhaps better to give each process a copy...
 _str2type = { re.split(r'\t+',line.rstrip())[0]: re.split(r'\t+',line.rstrip())[1:] for line in open(map_file) };
 _level    = { line.split()[0]: int(line.split()[1]) for line in open(typ_file) };
@@ -56,7 +58,7 @@ REGEX      = {string:re.compile(r'\b'+string        +r'\b') for string in _str2t
 REGEX_suff = {string:re.compile(      string.lower()+r'_') for string in _str2type};
 REGEX_infi = {string:re.compile(      string) for string in _str2type};
 COUNTRY    = re.compile(r'Germany_|Ddr|Brd|Fed_Rep_Ger_|Ger_Dem_Rep_');
-
+'''
 #########################################################################################################################################
 # CLASS DEFINITIONS #####################################################################################################################
 
@@ -81,7 +83,7 @@ class ADR:
 
 #########################################################################################################################################
 # FUNCTIONS #############################################################################################################################
-
+'''
 def lookup(string,cur): # See if the component corresponds to a geographical entity - problem is that almost everything is a city or such
     freq = cur.execute("SELECT COUNT(DISTINCT geonameid) FROM alternatives WHERE alternative=?",(string,)).fetchall()[0][0];
     if freq > 0:
@@ -126,23 +128,31 @@ def classify(components,geo_cur): # Determine possible labels for each component
             labelling[component].append('address');
     for component in labelling:
         labelling[component] = clean(labelling[component]);
-    classified = [(labelling[component][0],component,) if len(labelling[component])==1 else decide(labelling[component],component) if len(labelling[component])>1 else investigate(component,[labelling[component_] for component_ in components_ if len(labelling[component_])>=1]) for component in components_];
+    classified = [];
+    for component in components_:
+        if len(labelling[component]) == 1:
+            classified += [(labelling[component][0],component,)];
+        elif len(labelling[component]) > 1:
+            classified += decide(labelling[component],component);
+        else:
+            classified += investigate(component,[labelling[component_] for component_ in components_ if len(labelling[component_])>=1]);
     return classified;
 
 def decide(labels,component): # Determine one label if multiple labels are proposed for one component
     if len(labels) > 1 and labels[-1] =='clinic' and _level[labels[-2]] >= _level['clinic'] and ('Klin_' in component or 'Clin_' in component):
         return (labels[-2],component,);
-    return (labels[-1],component,);
+    #TODO: Implement here a way to detect if there are maybe legitimitely multiple components and return them
+    return [(labels[-1],component,)];
 
 def investigate(component,all_components): # Determine a label for a component if no label was found so far by looking more closely or defaulting
     if NUMBER.search(component) or STREET.search(component) or POSTCO.search(component) or COUNTRY.search(component):
-        return ('address',component,);
+        return [('address',component,)];
     labels = [];
     for keyword in REGEX_suff:
         if REGEX_suff[keyword].search(component):
             labels.append(_str2type[keyword][0]);
     if len(labels) == 0:
-        return ('other' if len(all_components)>1 else 'other',component,);
+        return [('other' if len(all_components)>1 else 'other',component,)];
     return decide(labels,component);
 
 def normalize(component,label): # Prepare the output component representation and labelling in the desired way
@@ -155,7 +165,7 @@ def normalize(component,label): # Prepare the output component representation an
                 terms[i] = _str2type[string][1];
                 break;
     return (' '.join([term for term in terms if not term=='' or term==' '])).strip();
-
+'''
 #########################################################################################################################################
 # PREPARING #############################################################################################################################
 

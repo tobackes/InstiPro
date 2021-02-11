@@ -9,7 +9,7 @@ for file in $folder*; do
     filename="${file##*/}";
     filenum="${filename%.*}";
     echo $mapping $subset $filenum;
-    python get_institutions.py $mapping $subset $filenum &
+    python code/get_institutions_v2.py $mapping $subset $filenum &
 done
 
 wait;

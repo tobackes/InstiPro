@@ -4,7 +4,7 @@
     "viz_file":     "plots/semilattice.dot",
     "typ_file":     "mappings/6/types.txt",
     "con_file":     "mappings/6/constraints.txt",
-    "name_db":      "representations/6/institutions/bielefeld.db",
+    "name_db":      "representations/6/institutions/bielefeld_year.db",
     "feat_dir":     "features/",
     "out_dir":      "output/bielefeld/",
     "result_dir":   "results/",

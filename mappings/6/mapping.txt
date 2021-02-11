@@ -84,6 +84,7 @@ Fak							faculty
 Fakultat					faculty
 Dekanat						faculty
 Fachbereich					field
+Fachber						field
 Fb							field
 Sect						field
 Sekt						field

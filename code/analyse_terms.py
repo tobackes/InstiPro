@@ -32,7 +32,7 @@ _langs = ['af','ar','bg','bn','ca','cs','cy','da','de','el','en','es','et','fa',
 
 _max_len_ = 4;
 _n_       = 3;
-_jobs     = 8;
+_jobs     = 64;
 _jobs2    = 64;
 _batch    = 10000;
 _batch2   = 10000;
@@ -96,12 +96,13 @@ def get_entropy(path,children):
         print(path_,entro);
         get_entropy(path_,children[child][1]);
 
-def get_splits(path,children,D,concat,thr):
+def get_splits(path,children,D,concat,thr,power):
     for child in children:
         H     = entropy([children[child][1][node][2] for node in children[child][1]]);
+        score = H / len(child)**power; # If normalized entropy is above the threshold then we do NOT split
         path_ = path[:-1]+[path[-1]+child] if len(path)>=1 and concat else path+[child];
-        print(path_,H);
-        get_splits(path_,children[child][1],D,H>thr,thr);
+        if score > 0: print(path_,score);
+        get_splits(path_,children[child][1],D,score>thr,thr,power);
         if len(path_) >= 2:
             options = [''.join(path_[:i+1]) for i in range(len(path_))]
             D[''.join(path_)] = options;
@@ -406,7 +407,7 @@ def feed(Q,infolder):
     return 0;
 
 def entropy(dist):
-    return -sum([prob*math.log(prob,base=2) for prob in dist]);
+    return -sum([prob*math.log(prob,2) for prob in dist]);
 
 #########################################################################################################################################
 # SCRIPT ##########ä#####################################################################################################################
@@ -440,7 +441,7 @@ d_inv  = combine_counters((counts[x][1] for x in range(len(counts))));
 dl     = {lang: combine_counters((counts[x][2][lang] if lang in counts[x][2] else Counter() for x in range(len(counts)))) for lang in _langs}
 dl_inv = {lang: combine_counters((counts[x][3][lang] if lang in counts[x][3] else Counter() for x in range(len(counts)))) for lang in _langs}
 print('Done combining results.');
-input('Press Enter to continue...');
+#input('Press Enter to continue...');
 
 #########################################################################################################################################
 
@@ -532,15 +533,20 @@ for key in replace:
     OUT.write(key+' '+replace[key]+'\n');
 OUT.close();
 
-OUT = open(modfile,'w');
-for term1 in transition:
-    for term2 in transition[term1]:
-        OUT.write(term1+' '+term2+' '+str(transition[term1][term2])+'\n');
-OUT.close();
+#OUT = open(modfile,'w');
+#for term1 in transition:
+#    for term2 in transition[term1]:
+#        OUT.write(term1+' '+term2+' '+str(transition[term1][term2])+'\n');
+#OUT.close();
 
 #########################################################################################################################################
 
-affixes_of = make_affixes(terms);
+terms     = terms;
+terms_inv = sorted([term[::-1] for term in terms]);
+
+affixes_of  = make_affixes(terms);
+suffixes_of = make_affixes(terms_inv);
+suffixes_of = {key[::-1]:[(affix[::-1],num,) for affix,num in suffixes_of[key][::-1]] for key in suffixes_of}
 
 agrams   = ([(affixes_of[term][i][0],affixes_of[term][i+1][0],) for i in range(len(affixes_of[term])-1)]+[(affixes_of[term][-1][0],)] if len(affixes_of[term])>=2 else [(affixes_of[term][-1][0],)] for term in affixes_of);
 agrams   = [gram for grams in agrams for gram in grams];
@@ -554,7 +560,7 @@ count = 0;
 for term in affixes_of:
     count += 1;
     if count == 1000000:
-        break;
+        pass;#break;
     affixes_of_[term] = [];
     current           = affixes_of[term][0];
     for i in range(len(affixes_of[term])):
@@ -576,11 +582,51 @@ for term in affixes_of:
         print(ngram,d[(term,)]);#d[(''.join([gram for gram in ngram if gram!=None]),)]);
 tree = make_tree_(agram_counter);
 
-splits = dict(); # This can be used to create multiple terms from one term, drop the phrase detection instead
-get_splits([],tree[1],splits,True,1.5);
+splits = dict();
+get_splits([],tree[1],splits,True,0.01,3);
 
+leftovers = set();
 for key in splits:
-    print(splits[key]);
+    LIST  = [''] + splits[key];
+    PARTS = [LIST[i][len(LIST[i-1]):] for i in range(len(LIST))][1:];
+    leftovers.add(PARTS[-1]);
+
+terms_inv   = sorted([term[::-1] for term in leftovers]);
+suffixes_of = make_affixes(terms_inv);
+suffixes_of = {key[::-1]:[(affix[::-1],num,) for affix,num in suffixes_of[key][::-1]] for key in suffixes_of}
+
+zgram_counter = Counter();
+for term in suffixes_of:
+    suffixes = [affix for affix,dist in suffixes_of[term]];
+    for i in range(len(suffixes)):
+        ngram = tuple(suffixes[:i+1]);#+[None for j in range(i+1,len(affixes))]);
+        key = ''.join([gram for gram in ngram if gram!=None]);
+        zgram_counter[ngram] = d[(key,)] if (key,) in d else 0.000000001;
+        #print(ngram,d[(term,)]);#d[(''.join([gram for gram in ngram if gram!=None]),)]);
+tree_inv = make_tree_(zgram_counter);
+
+splits_inv = dict();
+get_splits([],tree_inv[1],splits_inv,True,0.01,3);
+
+splittings = dict();
+for key in splits:
+    LIST   = [''] + splits[key];
+    PARTS  = [LIST[i][len(LIST[i-1]):] for i in range(len(LIST))][1:];
+    ENDS   = [''] + splits_inv[PARTS[-1]] if PARTS[-1] in splits_inv else ['',PARTS[-1]];
+    PARTS_ = [ENDS[i][len(ENDS[i-1]):] for i in range(len(ENDS))][1:];
+    SPLITS = PARTS[:-1]+PARTS_;
+    print('--------------------');
+    additionals = [PART for PART in PARTS_  if (PART,) in d and len(PART)>2 and d[(PART,)]>50];
+    additionals_ = [PART for PART in [''.join(ngram) for ngram in ngrams(PARTS_,2)+ngrams(PARTS,3)+ngrams(PARTS,4)]  if (PART,) in d and len(PART)>2 and d[(PART,)]>0];
+    prefixes    = [''.join(PARTS [:i]) for i in range(1,len(PARTS )+1)];
+    suffixes    = [''.join(SPLITS[:i]) for i in range(1,len(SPLITS)+1)];
+    print(set(prefixes+additionals+additionals_));
+    splittings[key] = set(prefixes+additionals+additionals_);
+
+OUT = open(modfile,'w');
+for term in splittings:
+    OUT.write(term+' '+' '.join((split for split in splittings[term] if split != term))+'\n');
+OUT.close();
 
 '''
 for root in tree[1]:

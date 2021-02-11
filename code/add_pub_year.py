@@ -20,7 +20,7 @@ gate       = 'svkowos.gesis.intra';
 addr_index = 'wos';
 addr_body  = { "query": {"term":{"_id": None}}, "_source":["pub_info"] };
 
-_workers_    = 8;
+_workers_    = 16;
 _scrollsize_ = 100;
 
 #########################################################################################################################################

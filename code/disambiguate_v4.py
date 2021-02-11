@@ -59,7 +59,7 @@ _special    = set([]);#set(['city']);
 _typeonly   = False;
 _colored    = False;
 _checker_   = False; # <---------------------------------------TODO:WARNING !!! This might not be wanted !!!
-_max_len_   = 4;
+_max_len_   = 6;
 
 _fields_     = [typ for typ in [line.rstrip().split()[0] for line in open(_cfg['typ_file'])] if not typ in _excluded];
 _levels_     = {typ:int(level) for typ,level in [line.rstrip().split() for line in open(_cfg['typ_file'])] if not typ in _excluded};
@@ -71,6 +71,8 @@ _p_         = psutil.Process(os.getpid()); _mb_ = 1024*1024;
 
 _feat_db = _cfg['root_dir']+_cfg['feat_dir']+str(_key)+'.db';
 _sums_db = _feat_db if _cfg['sums_db'] == None else _cfg['sums_db'];
+
+_skipvals = set(['Res','Sci','Sch','Inst','Dept','Wissensch'])
 
 #TODO: Put the below into the type file
 _short_form = { 'university'  : 'UNI',
@@ -86,7 +88,7 @@ _short_form = { 'university'  : 'UNI',
                 'faculty'     : 'FAC',
                 'center'      : 'CTR',
                 'site'        : 'SITE',
-                'other'       : '',
+                'other'       : 'OTHER',
                 'field'       : 'FIELD',
                 'institute'   : 'INST',
                 'subfield'    : 'SUBFIELD',
@@ -279,16 +281,17 @@ def get_nodes_edges(edges_in,index2node,D,colors):
         i_                       = D.node2index[index2node[i]];
         color_str                = color_string(D.rids_b[i_],colors);
         #node_display             = '"'+str(D.obs_[i_,0])+' ('+str(round(D.obs[i_,0],1))+')  |  '+str(D.car_[i_,0])+' ('+str(round(D.car[i_,0],1))+')\n'+D.nodes[index2node[i]][STR]+'"';
-        node_display             = '"'+str(int(D.obs_[i_,0]))+'  |  '+str(int(D.car_[i_,0]))+'\n'+D.nodes[index2node[i]][STR]+'"';
+        node_display             = '"'+str(int(D.obs_[i_,0]))+'  |  '+str(int(D.car_[i_,0]))+'\n'+string(D.nodes[index2node[i]][REP])+'"';
         str2dis[index2node[i]] = '"'+str(i)+'"';
-        if D.rids_b[i_].sum() != 0:
-            nodestrs.append(str(i)+' [label='+node_display+' style=striped fillcolor="'+color_str+'"]');
-        else:
-            nodestrs.append(str(i)+' [label='+node_display+' style="filled" fillcolor="gray"]');
+        if edges_in[i,:].sum() > 0 or edges_in[:,i].sum() > 0: #Only return nodes that have at least one edge (including to itself)
+            if D.rids_b[i_].sum() != 0:
+                nodestrs.append(str(i)+' [label='+node_display+' style=striped fillcolor="'+color_str+'"]');
+            else:
+                nodestrs.append(str(i)+' [label='+node_display+' style="filled" fillcolor="gray"]');
         for j in edges_in[i,:].nonzero()[1]:
             j_                = D.node2index[index2node[j]];
             #child_display     = '"'+str(round(D.nodes[index2node[j]][OBS]))+' ('+str(round(D.obs[j_,0],1))+')  |  '+str(round(D.nodes[index2node[j]][CAR]))+' ('+str(round(D.car[j_,0],1))+')\n'+D.nodes[index2node[j]][STR]+'"';
-            child_display     = '"'+str(int(D.nodes[index2node[j]][OBS]))+'  |  '+str(int(D.nodes[index2node[j]][CAR]))+'\n'+D.nodes[index2node[j]][STR]+'"';
+            child_display     = '"'+str(int(D.nodes[index2node[j]][OBS]))+'  |  '+str(int(D.nodes[index2node[j]][CAR]))+'\n'+string(D.nodes[index2node[j]][REP])+'"';
             can_be, should_be = can_be_merged(i_,j_,D), should_be_merged(i_,j_,D);
             edge_color        = 'blue' if can_be and not should_be else 'green' if can_be and should_be else 'black';
             edges.append(str(j)+' -> '+str(i)+' [label="'+str(round(D.weight[i_,j_],2)).strip('0')+'" dir="back" color="'+edge_color+'"]');
@@ -387,6 +390,45 @@ def draw(D,colors,I=None,TREE=False):
     OUT.write('}');
     print('done drawing.');
     OUT.close();
+
+def draw_all_contexts(D,colors,I=None,TREE=False):
+    edges_, index2node = D.edge, D.index2node;
+    downstream         = edges_**20; # Assuming there are no longer paths than 20
+    upstream           = edges_.T**20;
+    for node_index in range(len(D.index2node)):
+        draw_context(D,colors,node_index,downstream,upstream,I,TREE);
+
+def draw_one_context(D,colors,node_index,I=None,TREE=False):
+    edges_, index2node = D.edge, D.index2node;
+    downstream         = edges_**20; # Assuming there are no longer paths than 20
+    upstream           = edges_.T**20;
+    draw_context(D,colors,node_index,downstream,upstream,I,TREE);
+
+def draw_context(D,colors,node_index,downstream,upstream,I=None,TREE=False):
+    edges_, index2node = D.edge, D.index2node;
+    if True:
+        downstream_ = downstream[node_index];
+        upstream_   = upstream[node_index];
+        edges_down  = edges_.multiply(downstream_).multiply(downstream_.T);
+        edges_up    = edges_.multiply(upstream_  ).multiply(upstream_.T  );
+        edges__     = edges_down + edges_up;
+        if TREE:
+            edge_    = set_diagonal(edges__,csr(np.zeros(D.edge.shape[0])));    # Make irreflexive to get DAG
+            weights_ = get_view(D.weight,edge_);                                # Select only the weights for which there are edges in the reduced edge_
+            tree     = max_span_tree(weights_);                                 # Make a tree from the DAG
+            tree     = get_view(edge_,tree);                                    # Could also convert tree to boolean
+            edges__  = tree;
+        filename = index2node[node_index].replace('\n','___').replace(' ','').replace(':','__').replace(',','_').replace('{','').replace('}','');
+        OUT      = open(_cfg['out_dir']+'graphs/'+str(I)+'_'+_job_id+['.graph','.tree'][TREE]+'.'+filename+'.dot','w') if I != None else open(_cfg['viz_file'],'w');
+        OUT.write('digraph G {\nranksep=.3\nnodesep=.2\nnode [shape=box]\n');
+        nodestrs, edges, str2dis = get_nodes_edges(edges__,index2node,D,colors);
+        for edge in edges:
+            OUT.write(edge+'\n');
+        for nodestr in nodestrs:
+            OUT.write(nodestr+'\n');
+        OUT.write(str(node_index)+' [style=rounded, color=red, fontcolor=red]\n');
+        OUT.write('}');
+        OUT.close();
 
 def mentioninfos(nodeIndex,D,cur):
     mentionIDs   = [D.index2mentionID[i] for i in D.NM[nodeIndex,:].nonzero()[1]];
@@ -886,6 +928,14 @@ def string(node_rep):
             type2strings[typ].append(string);
         else:
             type2strings[typ] = [string];
+    vals = copy(type2strings['other']);
+    for val in vals:
+        for key in [key_ for key_ in type2strings.keys() if key_ != 'other']:
+            if val in type2strings[key]:
+                type2strings['other'].remove(val);
+                break;
+    if len(type2strings['other']) == 0:
+        del type2strings['other'];
     return '\n'.join([_short_form[typ]+': {'+','.join(type2strings[typ])+'}' for typ in type2strings]);
     #return '\n'.join([val for typ in type2strings for val in type2strings[typ]]);
     #return '\n'.join(sorted([typ+': {'+','.join(type2strings[typ])+'}' for typ in type2strings]));
@@ -904,9 +954,9 @@ def set2string(set_rep):
         string += list_rep[i][0]+'&"'+list_rep[i][1]+'";';
     return string[:-1];
 
-def generalize(set_rep):
+def generalize_(set_rep):
     d    = dict();
-    for key,val in set_rep:
+    for key,val in ((key,val,) for key,val in set_rep if not key=='other'):
         if key in d:
             d[key].add(val);
         else:
@@ -914,7 +964,21 @@ def generalize(set_rep):
     gens = [set_rep];
     cur  = set([]);
     for key in [key_ for level,key_ in sorted([(_levels_[key__],key__,) for key__ in list(d.keys())])[:-1]]: #sort by level
-        cur |= set(((key,val,) for val in d[key]));
+        cur |= set(((key,val,) for val in d[key]));# | set((('other',val,) for val in d[key]));
+        gens.append(copy(cur));
+    return gens;
+
+def generalize(set_rep):
+    d    = dict();
+    for key,val in ((key,val,) for key,val in set_rep if not key=='other'):
+        if key in d:
+            d[key].add(val);
+        else:
+            d[key] = set([val]);
+    gens = [set_rep];
+    cur  = set([]);
+    for key in [key_ for level,key_ in sorted([(_levels_[key__],key__,) for key__ in list(d.keys())])[:-1]]: #sort by level
+        cur |= set(((key,val,) for val in d[key])) | set((('other',val,) for val in d[key]));
         gens.append(copy(cur));
     return gens;
 
@@ -922,7 +986,8 @@ def simplify(set_rep):
     #return set([(['university','association','area','division','community','chair'][_levels_[key]],ngram,) for key,val in set_rep for ngram in ngrams(val+''.join(('_' for i in range(max([0,4-len(val)])))),4)]);
     #return set([(['university','association','area','division','community','chair'][_levels_[key]],val,) for key,val in set_rep]);
     #return set([('division' if _levels_[key]==3 else key,val,) for key,val in set_rep]);
-    return set([('other',val,) for key,val in set_rep]) | set([(key,val,) for key,val in set_rep if key!='other']);
+    #['university','faculty','institute','subfield','subject'][_levels_[key]]
+    return set([('other',val,) for key,val in set_rep if not val in _skipvals]) | set([(key,val,) for key,val in set_rep if key!='other' and not val in _skipvals]);
     #return set_rep;
     '''
     d = dict();
@@ -963,24 +1028,28 @@ def load_node_infos_db(dbfile,key,value,typeonly):
     else:
         cur.execute("SELECT mentionID, id, "+', '.join(fields)+" FROM representations WHERE "+' OR '.join([[key+"=?"],[key+str(i)+"=?" for i in range(1,_max_len_+1)]][key in set(_fields_)-_special]),tuple([[value],[value for i in range(1,_max_len_+1)]][key in set(_fields_)-_special]));
     for row in cur:
-        mentionID = row[0]#str(row[0]); #TODO: Remember that now the mentionID is expected to be INTEGER!
-        rID       = str(row[1]) if row[1] != None else '00000000000_None';
+        mentionID = row[0];
+        rID       = str(row[1]) if row[1] != None else None;
         list_rep  = row[2:];
         set_rep   = set([(fields[i][:-1],'',) if fields[i][-1] in set([str(n) for n in range(1,_max_len_+1)]) else (fields[i],'',) for i in range(len(fields)) if list_rep[i] != None]) if typeonly else set([(fields[i][:-1],list_rep[i],) if fields[i][-1] in set([str(n) for n in range(1,_max_len_+1)]) else (fields[i],list_rep[i],) for i in range(len(fields)) if list_rep[i] != None]);
+        set_rep   = simplify(set_rep);
         generalizations = generalize(set_rep);
-        set_reps        = [simplify(set_rep_) for set_rep_ in generalizations];
+        set_reps        = generalizations;#[simplify(set_rep_) for set_rep_ in generalizations];
+        gen_num         = 0;
         for set_rep_ in set_reps:
-            rID_       = rID if set_rep_==set_rep else '00000000000_None';
-            mentionIDs = [mentionID] if set_rep_==set_rep else [];
+            freq       = 1 if set_rep_ == set_rep else 0;
+            mentionID_ = mentionID + '_' + str(gen_num) if freq == 0 else mentionID;
+            rID_       = rID #if set_rep_==set_rep else '00000000000_None';
             if len(set_rep_)==0: continue; #TODO: How does it happen that there is an empty set representation?
             key_rep   = set2string(set_rep_);
             if not key_rep in temp_dict:
-                temp_dict[key_rep] = [set_rep_,Counter({rID_:mentionIDs})];
+                temp_dict[key_rep] = [set_rep_,{rID:Counter({mentionID_:freq})}];
             else:
-                if not rID_ in temp_dict[key_rep][1]:
-                    temp_dict[key_rep][1][rID_]  = mentionIDs;
+                if not rID in temp_dict[key_rep][1]:
+                    temp_dict[key_rep][1][rID]  = Counter({mentionID_:freq});
                 else:
-                    temp_dict[key_rep][1][rID_] += mentionIDs;
+                    temp_dict[key_rep][1][rID] += Counter({mentionID_:freq});
+            gen_num += 1 if freq == 0 else 0;
     node_infos = [temp_dict[key_rep] for key_rep in temp_dict];
     con.close();
     return node_infos;
@@ -1001,7 +1070,7 @@ def in_lattice(type_list,lat_cur):
         return False;
 
 def make_node(node_info,aggregate):
-    node = [sum(node_info[1].values()),0.0,set([]),set([]),node_info[0],string(node_info[0]),None,node_info[1],set([]),get_type(node_info[0])] if aggregate else [sum([len(lst) for lst in list(node_info[1].values())]),0.0,set([]),set([]),node_info[0],string(node_info[0]),None,node_info[1],set([]),get_type(node_info[0])];
+    node = [sum(node_info[1].values()),0.0,set([]),set([]),node_info[0],string(node_info[0]),None,node_info[1],set([]),get_type(node_info[0])] if aggregate else [sum([sum(node_info[1][rid].values()) for rid in node_info[1]]),0.0,set([]),set([]),node_info[0],string(node_info[0]),None,node_info[1],set([]),get_type(node_info[0])];
     return node;
 
 def get_nodes_by_level(nodes):
@@ -1214,9 +1283,18 @@ def can_be_merged(i,j,D):
     if not _slot_merge:
         return True;
     gen_rep, spe_rep = D.nodes[D.index2node[i]][REP], D.nodes[D.index2node[j]][REP];
-    val_diff         = set([val for key,val in spe_rep if key=='other']) - set([val for key,val in gen_rep if key=='other']);
+    gen_vals         = set([val for key,val in gen_rep if key=='other']);
+    spe_vals         = set([val for key,val in spe_rep if key=='other']);
+    spe_vals_only    = spe_vals - gen_vals;
+    gen_vals_only    = gen_vals - spe_vals;
+    gen_keys         = set([key for key,val in gen_rep if key!='other']);
+    spe_keys         = set([key for key,val in spe_rep if key!='other']);
+    spe_keys_only    = spe_keys - gen_keys;
+    gen_keys_only    = gen_keys - spe_keys;
+    max_spe_key_only = max([_levels_[key] for key in spe_keys_only]) if len(spe_keys_only) > 0 else 0;
+    max_gen_key      = max([_levels_[key] for key in gen_keys     ]) if len(spe_keys_only) > 0 else 4;
     #print(gen_rep); print(spe_rep); print(val_diff); print('--------------------------');
-    return len(val_diff) == 0;
+    return len(spe_vals_only)==0# or (len(spe_keys_only)+len(gen_keys_only)==0 and len(gen_keys) >= 3);# or (max_spe_key_only < max_gen_key and len(gen_keys) >= 3);
     #gen_levels       = [_levels_[key] for key,val in gen_rep if key!='other'];
     #gen_max_lvl      = max(gen_levels) if len(gen_levels)>0 else _levels_['other'];
     #level_of         = dict();
@@ -1880,6 +1958,7 @@ def merge_all_iteratively(D,t_start,con_out,cur_out,end=0.0):
     thr_iter = _cfg['thr']*[1,_cfg['selfprob_fac']][_weight_self]; #+0.000000000001TODO: Undo the addition if required
     if _cfg['do_results']: output(D,I,B,t_start,0,time.time()-c_time_0,thr_iter,con_out,cur_out);
     log_avg_repsize = np.log(sum([len(D.nodes[node][REP])*D.NM[D.node2index[node],:].sum() for node in D.index2node])/D.NM.sum());
+    detail_node     = D.index2node[0];
     while thr_iter > end:
         thr_iter -= _cfg['step']*[1,_cfg['selfprob_fac']][_weight_self]; m_time_0 = time.time(); print('I =',I,'| t =',thr_iter, '| log avg rep size =', log_avg_repsize);# print len(D.index2node);
         D = merger(D,thr_iter) if log_avg_repsize < _repsize_thr else D;
@@ -1889,7 +1968,10 @@ def merge_all_iteratively(D,t_start,con_out,cur_out,end=0.0):
         I += 1;
         if _cfg['do_results']: output(D,I,B,t_start,m_time,c_time,thr_iter,con_out,cur_out);
         if _cfg['do_json']: tojson(D,I);
-        if _cfg['do_graph']: draw(D,colors,I,False);
+        if _cfg['do_graph']:
+            draw(D,colors,I,False);
+            if detail_node in D.node2index: # Can only plot this node as long as it exists
+                draw_one_context(D,colors,D.node2index[detail_node],I,False);
         if _cfg['do_tree']: draw(D,colors,I,True);
         if _cfg['do_equiDB']: equiDB(D,I);
 
