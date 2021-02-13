@@ -72,7 +72,7 @@ def get_components(string): # Split the affiliation string into components, remo
     return ([component.strip() for component in string_.split(',')],[component.strip() for component in address.split(',') if len(component)>1],);
 
 def classify(components,geo_cur): # Determine possible labels for each component
-    components, addresses = components; print(addresses)
+    components, addresses = components; #print(addresses)
     components_ = [''.join([(term[0].upper()+term[1:].lower())+'_' if len(term)>1 else term[0].upper()+'_' for term in component.split()]) for component in components];
     addresses_  = [''.join([(term[0].upper()+term[1:].lower())+'_' if len(term)>1 else term[0].upper()+'_' for term in component.split()]) for component in addresses];
     extras_     = [];
@@ -105,7 +105,7 @@ def classify(components,geo_cur): # Determine possible labels for each component
                 labelling[city] = ['city'];
                 extras_.append(city);
     for component in components_+extras_+addresses_:
-        print(component);
+        #print(component);
         labelling[component] = clean(labelling[component]);
         for label in labelling[component]:
             label2comps[label].append(component);
@@ -114,9 +114,9 @@ def classify(components,geo_cur): # Determine possible labels for each component
         label2comps['city'] = [city];
         labelling[city]     = ['city'];
         label2comps['country'].pop(0);
-    print(label2comps);
+    #print(label2comps);
     classified = [];
-    print(labelling);
+    #print(labelling);
     for component in labelling:
         if len(labelling[component]) == 1:
             classified += [(labelling[component][0],component,)];
@@ -124,7 +124,7 @@ def classify(components,geo_cur): # Determine possible labels for each component
             classified += decide(labelling[component],component);
         else:
             classified += investigate(component,[labelling[component_] for component_ in components_ if len(labelling[component_])>=1],has_address);
-    print('classified',classified);
+    #print('classified',classified);
     return classified;
 
 def decide(labels,component): # Determine one label if multiple labels are proposed for one component
