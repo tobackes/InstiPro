@@ -48,9 +48,9 @@ def lookup(string,cur): # See if the component corresponds to a geographical ent
     if freq > 0:
         types = set([row[0] for row in cur.execute("SELECT feature_class FROM geonames WHERE geonameid IN (SELECT DISTINCT geonameid FROM alternatives WHERE alternative=?)",(string,)).fetchall()]);
         if 'A' in types:
-            return 'location';
+            return 'country';
         elif 'P' in types:
-            return 'location';
+            return 'country';
     return None;
 
 def decompose(string): # Find an obvious address suffix in an affiliation string
@@ -109,11 +109,11 @@ def classify(components,geo_cur): # Determine possible labels for each component
         labelling[component] = clean(labelling[component]);
         for label in labelling[component]:
             label2comps[label].append(component);
-    if (not 'city' in label2comps) and len(label2comps['location']) > 1:
-        city                = label2comps['location'][0];
+    if (not 'city' in label2comps) and len(label2comps['country']) > 1:
+        city                = label2comps['country'][0];
         label2comps['city'] = [city];
         labelling[city]     = ['city'];
-        label2comps['location'].pop(0);
+        label2comps['country'].pop(0);
     print(label2comps);
     classified = [];
     print(labelling);
