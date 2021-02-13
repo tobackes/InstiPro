@@ -18,4 +18,5 @@ subject     4
 community   4
 chair       4
 other       4
-address     0
+location    5
+city        5
