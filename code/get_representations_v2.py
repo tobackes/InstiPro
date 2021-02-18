@@ -14,8 +14,8 @@ import parsing
 mapping = sys.argv[1];
 WOS     = sys.argv[2].lower()=='wos';
 
-ADR_out  = 'representations/'+mapping+'/representations/'+['bielefeld','wos'][WOS]+'/';
-geonames = 'resources/allCountries.db';
+ADR_out     = 'representations/'+mapping+'/representations/'+['bielefeld','wos'][WOS]+'/';
+geonames    = 'resources/allCountries.db';
 #typ_file = 'mappings/'       +mapping+'/types.txt';
 #map_file = 'mappings/'       +mapping+'/mapping.txt';
 
@@ -29,7 +29,7 @@ _fields_reps = ['mentionID','wos_id','id','string','c1','t1','c2','t2','c3','t3'
 _workers_    = 8 if WOS else 16;
 _fullsize_   = 100000000. if WOS else 6500000.;
 _scrollsize_ = 10000;
-_max_len_    = 4;
+_max_len_    = 8;
 
 #########################################################################################################################################
 # CLASS DEFINITIONS #####################################################################################################################

@@ -8,8 +8,9 @@ from collections import defaultdict
 
 mapping  = '6'; # This and the below should be overwritten when the programs run that imported this library
 geonames = 'resources/allCountries.db';
-typ_file = 'mappings/'       +mapping+'/types.txt';
-map_file = 'mappings/'       +mapping+'/mapping.txt';
+typ_file = 'mappings/'+mapping+'/types.txt';
+map_file = 'mappings/'+mapping+'/mapping.txt';
+req_file = 'mappings/'+mapping+'/constraints.txt';
 
 con_in = sqlite3.connect(geonames);
 cur_in = con_in.cursor();
@@ -27,6 +28,16 @@ for string in _str2type:
         _type2str[_str2type[string][TYP]] = [string];
 for label in _type2str:
     _type2str[label] = sorted(_type2str[label],reverse=True); # So that longer matches are found first
+
+_requires = dict();
+IN = open(req_file);
+for line in IN.readlines():
+    label, req = line.rstrip().split('>')[0].strip(), line.rstrip().split('>')[1].strip();
+    if label in _requires:
+        _requires[label].add(req);
+    else:
+        _requires[label] = set([req]);
+IN.close();
 
 streets      = ['Weg','Str','Pl','Platz','Chaussee','Allee','Gasse','Ring','POB','Rd','Road','Strasse','Straße','Street','Way','Damm','Ufer','Postfach','Steig'];
 street_regex = '^(?!([A-Z]-)?[0-9])[aA-zZ]{3,}_?('+'|'.join([variant for street in streets for variant in [street,street.lower(),street.upper()]])+')_?([0-9]{1,3}-)?[0-9]{0,3}[aA-hH]?_$';
@@ -66,6 +77,26 @@ def clean(labels): # Remove duplicate labels, order needs to be maintained
             labels_.append(label);
             seen.add(label);
     return labels_;
+
+def check(classified):
+    label2components = dict();
+    for label,component in classified:
+        if label in label2components:
+            label2components[label].add(component);
+        else:
+            label2components[label] = set(component);
+    for label in label2components:
+        ok = not label in _requires;
+        for required in _requires[label]:
+            if required in label2components:
+                ok = True;
+                break;
+        if not ok:
+            print('Requirements for label',label,'are not met!');
+            #TODO: Theoretically we would need to find one of the required labels
+            #TODO: Or just back off and use anything unused from the string
+            return False;
+    return True;
 
 def get_components(string): # Split the affiliation string into components, remove obvious address parts
     string_,address = decompose(string)
@@ -125,6 +156,9 @@ def classify(components,geo_cur): # Determine possible labels for each component
         else:
             classified += investigate(component,[labelling[component_] for component_ in components_ if len(labelling[component_])>=1],has_address);
     #print('classified',classified);
+    ok = check(classified);
+    if not ok:
+        print(classified);
     return classified;
 
 def decide(labels,component): # Determine one label if multiple labels are proposed for one component
