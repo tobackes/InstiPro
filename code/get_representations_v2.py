@@ -14,8 +14,8 @@ import parsing
 mapping = sys.argv[1];
 WOS     = sys.argv[2].lower()=='wos';
 
-ADR_out  = 'representations/'+mapping+'/representations/'+['bielefeld','wos'][WOS]+'/';
-geonames = 'resources/allCountries.db';
+ADR_out     = 'representations/'+mapping+'/representations/'+['bielefeld','wos'][WOS]+'/';
+geonames    = 'resources/allCountries.db';
 #typ_file = 'mappings/'       +mapping+'/types.txt';
 #map_file = 'mappings/'       +mapping+'/mapping.txt';
 
