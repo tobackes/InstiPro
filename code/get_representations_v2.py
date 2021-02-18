@@ -24,12 +24,12 @@ addr_index = 'wos' if WOS else 'kb_institutions_bielefeld_addresses';
 addr_body  = { "query": {"match_all":{}}, "_source":["_id","addressInformation"] } if WOS else { "query": {"match_all":{}}, "_source":["PK_KB_INST","ADDRESS_FULL","WOS_ID"] };
 client     = ES([gate],scheme='http',port=9200,timeout=60) if WOS else ES([gate],scheme='http',port=80,timeout=60);
 
-_fields_reps = ['mentionID','wos_id','id','string','c1','t1','c2','t2','c3','t3','c4','t4','street','number','postcode','city','country'];
-
 _workers_    = 8 if WOS else 16;
 _fullsize_   = 100000000. if WOS else 6500000.;
 _scrollsize_ = 10000;
 _max_len_    = 8;
+
+_fields_reps = ['mentionID','wos_id','id','string']+[el for pair in (('c'+str(i),'t'+str(i)) for i in range(1,_max_len_+1)) for el in pair]+['street','number','postcode','city','country'];
 
 #########################################################################################################################################
 # CLASS DEFINITIONS #####################################################################################################################
@@ -63,7 +63,7 @@ _curs_out_ = [con_out.cursor() for con_out in _cons_out_];
 
 for cur_out in _curs_out_:
     cur_out.execute("DROP TABLE IF EXISTS representations");
-    cur_out.execute("CREATE TABLE representations(mentionID TEXT, wos_id TEXT, id INT, string TEXT, c1 TEXT, t1 TEXT, c2 TEXT, t2 TEXT, c3 TEXT, t3 TEXT, c4 TEXT, t4 TEXT, street TEXT, number TEXT, postcode TEXT, city TEXT, country TEXT, concomp INT)");
+    cur_out.execute("CREATE TABLE representations(mentionID TEXT, wos_id TEXT, id INT, string TEXT, "+",".join([el+' TEXT' for pair in (('c'+str(i),'t'+str(i)) for i in range(1,_max_len_+1)) for el in pair])+", street TEXT, number TEXT, postcode TEXT, city TEXT, country TEXT, concomp INT)");
 
 #########################################################################################################################################
 # LOADING ADDRESSES #####################################################################################################################
@@ -109,7 +109,7 @@ def work(Q,cur_out,con_out,cur_in):
             IDs.append(ID);
             mentionIDs.append(mentionID);
             addrs.append(addr);
-        cur_out.executemany("INSERT INTO representations("+','.join(_fields_reps)+") VALUES("+', '.join(['?' for x in range(17)])+")",(tuple([mentionIDs[i],WOS_IDs[i],IDs[i],addrs[i]]+[objs[i].components[0],objs[i].types[0],objs[i].components[1],objs[i].types[1],objs[i].components[2],objs[i].types[2],objs[i].components[3],objs[i].types[3]]+[objs[i].street,objs[i].number,objs[i].postcode,objs[i].city,objs[i].country]) for i in range(len(objs))));
+        cur_out.executemany("INSERT INTO representations("+','.join(_fields_reps)+") VALUES("+', '.join(['?' for x in range(4+2*_max_len_+5)])+")",(tuple([mentionIDs[i],WOS_IDs[i],IDs[i],addrs[i]]+[el for pair in ((objs[i].components[j],objs[i].types[j]) for j in range(_max_len_)) for el in pair]+[objs[i].street,objs[i].number,objs[i].postcode,objs[i].city,objs[i].country]) for i in range(len(objs))));
         con_out.commit();
 
 def main():
