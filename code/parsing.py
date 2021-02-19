@@ -78,25 +78,35 @@ def clean(labels): # Remove duplicate labels, order needs to be maintained
             seen.add(label);
     return labels_;
 
-def check(classified):
+def verify(classified):
     label2components = dict();
     for label,component in classified:
         if label in label2components:
             label2components[label].add(component);
         else:
-            label2components[label] = set(component);
+            label2components[label] = set([component]);
     for label in label2components:
         ok = not label in _requires;
-        for required in _requires[label]:
+        for required in _requires[label] if label in _requires else []:
             if required in label2components:
                 ok = True;
                 break;
         if not ok:
-            print('Requirements for label',label,'are not met!');
-            #TODO: Theoretically we would need to find one of the required labels
-            #TODO: Or just back off and use anything unused from the string
-            return False;
-    return True;
+            if label == 'community':
+                return verify([('company',component,) if label=='community' else (label,component,) for label in label2components for component in label2components[label]]);
+            if label == 'other':
+                return verify([('institution',component,) if label=='other' else (label,component,) for label in label2components for component in label2components[label]]);
+            if label in set(['division','city','country','site','faculty','chair','subject','field','subfield']):
+                if 'site' in label2components:
+                    return verify([('institution',component,) if label=='site' else (label,component,) for label in label2components for component in label2components[label]]);
+                if 'city' in label2components:
+                    return verify([('institution',component,) if label=='city' else (label,component,) for label in label2components for component in label2components[label]]);
+                if 'address' in label2components:
+                    return verify([('institution',component,) if label=='address' else (label,component,) for label in label2components for component in label2components[label]]);
+                if 'street' in label2components:
+                    return verify([('institution',component,) if label=='street' else (label,component,) for label in label2components for component in label2components[label]]);
+            return verify([('institution',component,) for label in label2components for component in label2components[label]]);
+    return classified;
 
 def get_components(string): # Split the affiliation string into components, remove obvious address parts
     string_,address = decompose(string)
@@ -156,9 +166,8 @@ def classify(components,geo_cur): # Determine possible labels for each component
         else:
             classified += investigate(component,[labelling[component_] for component_ in components_ if len(labelling[component_])>=1],has_address);
     #print('classified',classified);
-    ok = check(classified);
-    if not ok:
-        print(classified);
+    classified = verify(classified);
+    classified = [('other',component,) if label=='division' else (label,component,) for label,component in classified];
     return classified;
 
 def decide(labels,component): # Determine one label if multiple labels are proposed for one component
