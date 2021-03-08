@@ -4,6 +4,7 @@ import sqlite3
 import re
 import sys
 from collections import Counter
+from copy import deepcopy as copy
 #########################################################################################################################################
 # GLOBAL OBJECTS ########################################################################################################################
 
@@ -41,10 +42,10 @@ _splittings_ = { line.rstrip().split(' ')[0]:line.rstrip().split(' ')[1:] for li
 
 _scrollsize_        = 10000;
 _fullsize_          = float(_cur_in_.execute("SELECT count(*) FROM representations").fetchall()[0][0]);
-_max_len_           = 6;
+_max_len_           = 4;
 _min_component_len_ = 2;
 
-_fields_inst = ['mentionID','wos_id','id','string']+[typ.lower()+str(num) for typ in _types for num in [range(1,_max_len_+1),['']][typ in _singletons]]+['street','number','postco'];
+_fields_inst = ['mentionID','wos_id','id','string']+[typ.lower()+str(num) for typ in _types for num in [range(1,_max_len_+1),['']][typ in _singletons]]+['street','number','postco','observed'];
 _field2index = {_fields_inst[i]:i for i in range(len(_fields_inst))};
 
 #########################################################################################################################################
@@ -73,7 +74,7 @@ def distribute(rows):
     for mentionID,wos_id,inst_id,string,c1,t1,c2,t2,c3,t3,c4,t4,c5,t5,c6,t6,c7,t7,c8,t8,street,number,postco,city,country,concomp in rows:
         out_row      = [None for i in range(len(_fields_inst))];
         out_row[:4]  = mentionID,wos_id,inst_id,string;
-        out_row[-3:] = street,number,postco;
+        out_row[-4:] = street,number,postco,1;
         this_type  = None;
         component  = '';
         components = sorted([tup for tup in ((t1,c1),(t2,c2),(t3,c3),(t4,c4),(t5,c5),(t6,c6),(t7,c7),(t8,c8)) if not tup[0]==None]);
@@ -82,12 +83,66 @@ def distribute(rows):
                 component += ' '+next_comp; # in case one component label is used over multiple components
             else: # new type or last iteration
                 if component != '': # first iteration
-                    out_row[_field2index[this_type+['1',''][this_type in _singletons]]:_field2index[this_type+['1',''][this_type in _singletons]]+[_max_len_,1][this_type in _singletons]] = get_rep(component,this_type);
+                    key = this_type+['1',''][this_type in _singletons];
+                    if key in _field2index: # If we have some labels in the representations that we do not use as defined in the types
+                        start              = _field2index[key];
+                        end                = start+[_max_len_,1][this_type in _singletons];
+                        out_row[start:end] = get_rep(component,this_type);
                 this_type = next_type;
                 component = next_comp;
         if component != '': # first iteration
-            out_row[_field2index[this_type+['1',''][this_type in _singletons]]:_field2index[this_type+['1',''][this_type in _singletons]]+[_max_len_,1][this_type in _singletons]] = get_rep(component,this_type);
+            #out_row[_field2index[this_type+['1',''][this_type in _singletons]]:_field2index[this_type+['1',''][this_type in _singletons]]+[_max_len_,1][this_type in _singletons]] = get_rep(component,this_type);
+            key = this_type+['1',''][this_type in _singletons];
+            if key in _field2index: # If we have some labels in the representations that we do not use as defined in the types
+                start              = _field2index[key];
+                end                = start+[_max_len_,1][this_type in _singletons];
+                out_row[start:end] = get_rep(component,this_type);
         yield out_row;
+        for gen_row in generalize(out_row): # Does NOT contain the out_row itself
+            yield gen_row;
+
+def generalize(row): #TODO: Mind that the 4 to -4 depend on the column definition which is subject to change
+    rep  = set([(_fields_inst[i][:-1],row[i],) for i in range(len(row)) if row[i] != None and i>=4 and i<len(row)-4]);
+    #print('-------------------------------------------\n',rep);
+    gens = generalizer(rep);
+    for j in range(len(gens)):
+        gen     = gens[j];
+        row_    = [row[i] if i<4 or i>=len(row)-4 else None for i in range(len(row))];
+        row_[0] = row_[0]+'_'+str(j);
+        key_    = None;
+        num_    = None;
+        for key,val in sorted(list(gen)): # To make sure that same keys come after each other
+            if key != key_:
+                key_ = key;
+                num  = 1;
+            else:
+                num += 1; #TODO: WARNING: The +str(num) is very problematic as we might also have fields that are not added a number. Or should be add 1?
+            row_[_field2index[key+str(num)]] = val;
+            row_[-1]                = 0;
+        #print('-----------------------------\n',gen);
+        yield row_;
+
+def generalizer(set_rep):
+    d    = dict();
+    for level,key,val in ((_types[key],key,val,) for key,val in set_rep if not key=='other'):
+        if not level in d:
+            d[level] = dict();
+        if not key in d[level]:
+            d[level][key] = set();
+        d[level][key].add(val);
+    gens = [];
+    cur  = set([]);
+    for level in sorted(list(d.keys())):
+        cur__ = copy(cur);
+        for key in d[level]:
+            cur_   = copy(cur);
+            cur_  |= set(((key,val,) for val in d[level][key]));
+            cur__ |= set(((key,val,) for val in d[level][key]));
+            gens.append(cur_);
+        if cur__ != cur_:
+            gens.append(cur__);
+        cur = cur__; #Make sure that for the next more specific level, all more general keys are added. Alternative is cartesian product.
+    return gens;
 
 def main():
     page_num = 0; 

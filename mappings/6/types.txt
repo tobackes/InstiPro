@@ -20,5 +20,3 @@ community   4
 chair       4
 other       4
 division    4
-country     5
-city        5

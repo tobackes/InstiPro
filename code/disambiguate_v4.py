@@ -55,11 +55,11 @@ cfg_in = open(_cfg_file,'r'); _cfg = json.loads(cfg_in.read()); cfg_in.close();
 _result_db = _cfg['out_dir']+_cfg['result_dir']+_job_id+'.db';
 
 _excluded   = set([]) if _cfg['name_db'].endswith('dfg.db') else set(['None']);
-_special    = set([]);#set(['city']);
+_special    = set([])#set(['city']);#set(['city']);
 _typeonly   = False;
 _colored    = False;
 _checker_   = False; # <---------------------------------------TODO:WARNING !!! This might not be wanted !!!
-_max_len_   = 6;
+_max_len_   = 4;
 
 _fields_     = [typ for typ in [line.rstrip().split()[0] for line in open(_cfg['typ_file'])] if not typ in _excluded];
 _levels_     = {typ:int(level) for typ,level in [line.rstrip().split() for line in open(_cfg['typ_file'])] if not typ in _excluded};
@@ -75,7 +75,8 @@ _sums_db = _feat_db if _cfg['sums_db'] == None else _cfg['sums_db'];
 _skipvals = set(['Res','Sci','Sch','Inst','Dept','Wissensch'])
 
 #TODO: Put the below into the type file
-_short_form = { 'university'  : 'UNI',
+_short_form = { 'institution' : 'ANY',
+                'university'  : 'UNI',
                 'academy'     : 'ACAD',
                 'agency'      : 'AGCY',
                 'association' : 'ASSOC',
@@ -95,7 +96,9 @@ _short_form = { 'university'  : 'UNI',
                 'subject'     : 'SUBJ',
                 'community'   : 'GRP',
                 'chair'       : 'CHAIR',
-                'address'     : 'ADDR'}
+                'division'    : 'DEPT',
+                'country'     : 'COUNTRY',
+                'city'        : 'CITY'}
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #-CLASSES---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 class DATA:
@@ -1018,26 +1021,27 @@ def load_node_infos_db(dbfile,key,value,typeonly):
     cur        = con.cursor();    
     if key == None:
         if value == None:
-            cur.execute("SELECT mentionID, id, "+', '.join(fields)+" FROM representations");
+            cur.execute("SELECT mentionID, id, observed, "+', '.join(fields)+" FROM representations");
         else:
-            cur.execute("SELECT mentionID, id, "+', '.join(fields)+" FROM representations WHERE "+' OR '.join([field+'=?' for field in fields]),tuple([value for field in fields]));
+            cur.execute("SELECT mentionID, id, observed, "+', '.join(fields)+" FROM representations WHERE "+' OR '.join([field+'=?' for field in fields]),tuple([value for field in fields]));
     elif key == 'query':
-        cur.execute("SELECT mentionID, id, "+', '.join(fields)+" FROM representations WHERE mentionID IN "'('+value+')');
+        cur.execute("SELECT mentionID, id, observed, "+', '.join(fields)+" FROM representations WHERE mentionID IN "'('+value+')');
     elif key == 'bielefeld':
-        cur.execute("SELECT mentionID, id, "+', '.join(fields)+" FROM representations WHERE id IN "'('+value+')');
+        cur.execute("SELECT mentionID, id, observed, "+', '.join(fields)+" FROM representations WHERE id IN "'('+value+')');
     else:
-        cur.execute("SELECT mentionID, id, "+', '.join(fields)+" FROM representations WHERE "+' OR '.join([[key+"=?"],[key+str(i)+"=?" for i in range(1,_max_len_+1)]][key in set(_fields_)-_special]),tuple([[value],[value for i in range(1,_max_len_+1)]][key in set(_fields_)-_special]));
+        cur.execute("SELECT mentionID, id, observed, "+', '.join(fields)+" FROM representations WHERE "+' OR '.join([[key+"=?"],[key+str(i)+"=?" for i in range(1,_max_len_+1)]][key in set(_fields_)-_special]),tuple([[value],[value for i in range(1,_max_len_+1)]][key in set(_fields_)-_special]));
     for row in cur:
         mentionID = row[0];
         rID       = str(row[1]) if row[1] != None else None;
-        list_rep  = row[2:];
+        observed  = int(row[2]);
+        list_rep  = row[3:];
         set_rep   = set([(fields[i][:-1],'',) if fields[i][-1] in set([str(n) for n in range(1,_max_len_+1)]) else (fields[i],'',) for i in range(len(fields)) if list_rep[i] != None]) if typeonly else set([(fields[i][:-1],list_rep[i],) if fields[i][-1] in set([str(n) for n in range(1,_max_len_+1)]) else (fields[i],list_rep[i],) for i in range(len(fields)) if list_rep[i] != None]);
         set_rep   = simplify(set_rep);
-        generalizations = generalize(set_rep);
+        generalizations = [set_rep]#generalize(set_rep);
         set_reps        = generalizations;#[simplify(set_rep_) for set_rep_ in generalizations];
         gen_num         = 0;
         for set_rep_ in set_reps:
-            freq       = 1 if set_rep_ == set_rep else 0;
+            freq       = observed;#1 if set_rep_ == set_rep else 0;
             mentionID_ = mentionID + '_' + str(gen_num) if freq == 0 else mentionID;
             rID_       = rID #if set_rep_==set_rep else '00000000000_None';
             if len(set_rep_)==0: continue; #TODO: How does it happen that there is an empty set representation?
@@ -1959,12 +1963,17 @@ def merge_all_iteratively(D,t_start,con_out,cur_out,end=0.0):
     if _cfg['do_results']: output(D,I,B,t_start,0,time.time()-c_time_0,thr_iter,con_out,cur_out);
     log_avg_repsize = np.log(sum([len(D.nodes[node][REP])*D.NM[D.node2index[node],:].sum() for node in D.index2node])/D.NM.sum());
     detail_node     = D.index2node[0];
+    if _cfg['do_graph']:
+        draw(D,colors,I,False);
+        if detail_node in D.node2index: # Can only plot this node as long as it exists
+            draw_one_context(D,colors,D.node2index[detail_node],I,False);
+        if _cfg['do_tree']: draw(D,colors,I,True);
     while thr_iter > end:
         thr_iter -= _cfg['step']*[1,_cfg['selfprob_fac']][_weight_self]; m_time_0 = time.time(); print('I =',I,'| t =',thr_iter, '| log avg rep size =', log_avg_repsize);# print len(D.index2node);
-        D = merger(D,thr_iter) if log_avg_repsize < _repsize_thr else D;
-        D      = discounter(D,_d_) if log_avg_repsize < _repsize_thr else D;
-        m_time = time.time() - m_time_0; c_time_0 = time.time();
-        c_time = time.time() - c_time_0;
+        D         = merger(D,thr_iter) if log_avg_repsize < _repsize_thr else D;
+        D         = discounter(D,_d_) if log_avg_repsize < _repsize_thr else D;
+        m_time    = time.time() - m_time_0; c_time_0 = time.time();
+        c_time    = time.time() - c_time_0;
         I += 1;
         if _cfg['do_results']: output(D,I,B,t_start,m_time,c_time,thr_iter,con_out,cur_out);
         if _cfg['do_json']: tojson(D,I);
