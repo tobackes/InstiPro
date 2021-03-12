@@ -5,6 +5,8 @@
     "typ_file":     "mappings/6/types.txt",
     "con_file":     "mappings/6/constraints.txt",
     "name_db":      "representations/6/institutions/bielefeld.db",
+    "silver_db":    "resources/dfg_wos_silver_standard.db",
+    "pair_db":      "output/relations_pos.db",
     "feat_dir":     "features/",
     "out_dir":      "output/bielefeld/",
     "result_dir":   "results/",

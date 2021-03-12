@@ -276,28 +276,47 @@ def get_nodes_edges_(edges_in,index2node,D,colors):
             edges.append('"'+index2node[j]+'" -> "'+index2node[i]+'" [label="'+str(round(D.weight[i_,j_],2)).strip('0')+'" dir="back" color="'+edge_color+'"]');
     return nodestrs, edges, str2dis;
 
-def get_nodes_edges(edges_in,index2node,D,colors):
+def get_nodes_edges(edges_in,index2node,D,colors,verified_mentions=None):
+    edges_in = transitive_closure(edges_in);
     edges    = [];
     nodestrs = [];
     str2dis  = dict();
     for i in range(len(index2node)):
+        mentionIDIndices         = D.NM[i,:].nonzero()[1];
+        mentionIDs               = set([D.index2mentionID[mentionIDIndex] for mentionIDIndex in mentionIDIndices]);
+        verifieds                = set([]) if verified_mentions == None else mentionIDs & set(verified_mentions.keys());
+        has_verified             = len(verifieds) > 0;
+        if verified_mentions!=None and not has_verified:
+            continue;
         i_                       = D.node2index[index2node[i]];
         color_str                = color_string(D.rids_b[i_],colors);
         #node_display             = '"'+str(D.obs_[i_,0])+' ('+str(round(D.obs[i_,0],1))+')  |  '+str(D.car_[i_,0])+' ('+str(round(D.car[i_,0],1))+')\n'+D.nodes[index2node[i]][STR]+'"';
-        node_display             = '"'+str(int(D.obs_[i_,0]))+'  |  '+str(int(D.car_[i_,0]))+'\n'+string(D.nodes[index2node[i]][REP])+'"';
-        str2dis[index2node[i]] = '"'+str(i)+'"';
-        if edges_in[i,:].sum() > 0 or edges_in[:,i].sum() > 0: #Only return nodes that have at least one edge (including to itself)
+        strings                  = '' if verified_mentions == None else '\n-----------------\n'+'\n'.join(set((verified_mentions[mentionID] for mentionID in verifieds)));
+        obs_car                  = '' if verified_mentions != None else str(int(D.obs_[i_,0]))+'  |  '+str(int(D.car_[i_,0]))+'\n';
+        node_display             = '"'+obs_car+string(D.nodes[index2node[i]][REP])+strings+'"' if has_verified else '""';
+        str2dis[index2node[i]]   = '"'+str(i)+'"';
+        if (verified_mentions==None or has_verified): #and (edges_in[i,:].sum() > 0 or edges_in[:,i].sum() > 0): #Only return nodes that have at least one edge (including to itself)
             if D.rids_b[i_].sum() != 0:
                 nodestrs.append(str(i)+' [label='+node_display+' style=striped fillcolor="'+color_str+'"]');
             else:
                 nodestrs.append(str(i)+' [label='+node_display+' style="filled" fillcolor="gray"]');
         for j in edges_in[i,:].nonzero()[1]:
+            mentionIDIndices_ = D.NM[j,:].nonzero()[1];
+            mentionIDs_       = set([D.index2mentionID[mentionIDIndex] for mentionIDIndex in mentionIDIndices_]);
+            verifieds_        = set([]) if verified_mentions == None else mentionIDs_ & set(verified_mentions.keys());
+            has_verified_     = len(verifieds_) > 0;
+            if verified_mentions!=None and not has_verified_:
+                continue;
             j_                = D.node2index[index2node[j]];
             #child_display     = '"'+str(round(D.nodes[index2node[j]][OBS]))+' ('+str(round(D.obs[j_,0],1))+')  |  '+str(round(D.nodes[index2node[j]][CAR]))+' ('+str(round(D.car[j_,0],1))+')\n'+D.nodes[index2node[j]][STR]+'"';
-            child_display     = '"'+str(int(D.nodes[index2node[j]][OBS]))+'  |  '+str(int(D.nodes[index2node[j]][CAR]))+'\n'+string(D.nodes[index2node[j]][REP])+'"';
+            strings           = '' if verified_mentions == None else '\n-----------------\n'+'\n'.join(set((verified_mentions[mentionID] for mentionID in verifieds_)));
+            obs_car           = '' if verified_mentions != None else str(int(D.nodes[index2node[j]][OBS]))+'  |  '+str(int(D.nodes[index2node[j]][CAR]))+'\n';
+            child_display     = '"'+obs_car+string(D.nodes[index2node[j]][REP])+strings+'"' if has_verified_ else '""';
             can_be, should_be = can_be_merged(i_,j_,D), should_be_merged(i_,j_,D);
             edge_color        = 'blue' if can_be and not should_be else 'green' if can_be and should_be else 'black';
-            edges.append(str(j)+' -> '+str(i)+' [label="'+str(round(D.weight[i_,j_],2)).strip('0')+'" dir="back" color="'+edge_color+'"]');
+            edge_weight       = '' if verified_mentions != None else str(round(D.weight[i_,j_],2)).strip('0');
+            if (has_verified and has_verified_) and (verified_mentions==None or i != j):
+                edges.append(str(j)+' -> '+str(i)+' [label="'+edge_weight+'" dir="back" color="'+edge_color+'"]');
     return nodestrs, edges, str2dis;
 
 def repID2Index(repID,cur):
@@ -358,6 +377,8 @@ def draw(D,colors,I=None,TREE=False):
     #print 'doing transitive reduction...';
     #D.edge = transitive_reduction(D.edge); #TODO: Should this not better be put elsewhere?
     print('start drawing...');
+    con                = sqlite3.connect(_cfg['silver_db']); cur = con.cursor();
+    verified_mentions  = dict(cur.execute("SELECT mentionID,ref_string FROM mapping WHERE verified1=1")); con.close();
     edges_, index2node = D.edge, D.index2node;
     if TREE:
         edge_    = set_diagonal(D.edge,csr(np.zeros(D.edge.shape[0]))); #Make irreflexive to get DAG
@@ -368,8 +389,8 @@ def draw(D,colors,I=None,TREE=False):
         #edges_, index2node = redundant_tree(D.edge,D.index2node); print edges_.shape, len(index2node)
     #OUT = open(_cfg['viz_file']+['.graph','.tree'][TREE]+'.'+str(I),'w') if I != None else open(_cfg['viz_file'],'w');
     OUT = open(_cfg['out_dir']+'graphs/'+str(I)+'_'+_job_id+['.graph','.tree'][TREE]+'.dot','w') if I != None else open(_cfg['viz_file'],'w');
-    OUT.write('digraph G {\nranksep=.3\nnodesep=.2\nnode [shape=box]\n');
-    nodestrs, edges, str2dis = get_nodes_edges(edges_,index2node,D,colors);
+    OUT.write('digraph G {\nranksep=.3\nnodesep=.2\nnode [shape=box height=0 width=0]\n');
+    nodestrs, edges, str2dis = get_nodes_edges(edges_,index2node,D,colors,verified_mentions);
     for edge in edges:
         OUT.write(edge+'\n');
     for nodestr in nodestrs:
@@ -609,7 +630,6 @@ def makeforest(edges,nodeInfos,obss,carss,D):
         child_node['mentions'] = Counter([D.mentInfos[mentionIndex]['address_string'] for mentionIndex in D.NM[child_ind,:].nonzero()[1]]);
     return {"institution_hierarchies":forest} if edges != [] else {"institution_hierarchies":{'mentions':Counter([D.mentInfos[mentionIndex]['address_string'] for mentionIndex in D.NM[D.node2index[0],:].nonzero()[1]])}};
 
-
 def tojson(D,I=None):
     print('doing transitive reduction...');
     D.edge = transitive_reduction(D.edge);
@@ -715,6 +735,23 @@ def additional_output(D):
     print('... x unweighted gini relative to weighted:  ', round(num_nodes_rel*gini_reps_rel_unw*gini_cross_weight,2));
     print('---------------------------------------------------');
     return (NUM_NODES_start ,num_oversize, round(num_nodes_rel*100), round(GINI_repsize_start*100,), round(gini_reps*100), round(gini_reps_rel*100), round(gini_cross_weight*100), round(GINI_repsize_start_unw*100), round(gini_reps_unw*100), round(gini_reps_rel_unw*100), round(num_nodes_rel*gini_reps_rel*100), round(num_nodes_rel*gini_reps_rel_unw*100), round(num_nodes_rel*gini_reps_rel_unw*gini_cross_weight*100), sum_oversize, reps_x_ment);
+
+def output_relations(D):
+    con               = sqlite3.connect(_cfg['silver_db']); cur = con.cursor();
+    verified_mentions = set((row[0] for row in cur.execute("SELECT mentionID FROM mapping WHERE verified1=1") if row[0] in D.mentionID2index)); con.close();
+    verified_indices  = [D.mentionID2index[mentionID] for mentionID in verified_mentions];
+    equal             = D.NM.T[verified_indices,:].dot(D.NM[:,verified_indices]); equal.setdiag(False); equal.eliminate_zeros();
+    equivalences      = ((int(D.index2mentionID[verified_indices[fro]]),int(D.index2mentionID[verified_indices[to]]),) for fro,to in zip(*equal.nonzero()));
+    rep2rep           = transitive_closure(D.edge); rep2rep.setdiag(False); rep2rep.eliminate_zeros();
+    ment2ment         = D.NM.T[verified_indices,:].dot(rep2rep).dot(D.NM[:,verified_indices]);
+    supersets         = ((int(D.index2mentionID[verified_indices[fro]]),int(D.index2mentionID[verified_indices[to]]),) for fro,to in zip(*ment2ment.nonzero()));
+    con               = sqlite3.connect(_cfg["pair_db"]); cur = con.cursor();
+    cur.execute("DROP TABLE IF EXISTS equivalent");
+    cur.execute("DROP TABLE IF EXISTS supersets");
+    cur.execute("CREATE TABLE equivalent(x INT, y INT, UNIQUE(x,y))");
+    cur.execute("CREATE TABLE supersets(x INT, y INT, UNIQUE(x,y))");
+    cur.executemany("INSERT INTO equivalent VALUES(?,?)",equivalences); con.commit();
+    cur.executemany("INSERT INTO supersets VALUES(?,?)",supersets); con.commit(); con.close();
 
 def get_slot_statistics(nodes):
     infos = [(tuple(sorted(list(set([tup[0] for tup in nodes[node][REP]])))),nodes[node][OBS],) for node in nodes];
@@ -1983,6 +2020,7 @@ def merge_all_iteratively(D,t_start,con_out,cur_out,end=0.0):
                 draw_one_context(D,colors,D.node2index[detail_node],I,False);
         if _cfg['do_tree']: draw(D,colors,I,True);
         if _cfg['do_equiDB']: equiDB(D,I);
+    output_relations(D);
 
 def interface(D,colors):
     global iteration, COMP;
