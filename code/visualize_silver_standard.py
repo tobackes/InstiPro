@@ -80,6 +80,21 @@ cols                          = [mentionID2index[mentionID] for mentionID in ind
 NM                            = csr((np.ones(len(rows),dtype=bool),(rows,cols)),shape=(forest.shape[0],max(cols)+1),dtype=bool);
 
 for i in range(num): #num
+    equal             = NM.T[:,index2node].dot(NM[index2node,:]); equal.setdiag(False); equal.eliminate_zeros();
+    equivalences      = [(int(index2mentionID[fro]),int(index2mentionID[to]),) for fro,to in zip(*equal.nonzero())];
+    rep2rep           = transitive_closure(tree); rep2rep.setdiag(False); rep2rep.eliminate_zeros();
+    ment2ment         = NM.T[:,index2node].dot(rep2rep).dot(NM[index2node,:]);
+    supersets         = [(int(index2mentionID[fro]),int(index2mentionID[to]),) for fro,to in zip(*ment2ment.nonzero())];
+    if len(equivalences)==0 and len(supersets)==0:
+        continue;
+    con_out = sqlite3.connect(_pair_db+'_'+root_str+'.db'); cur_out = con_out.cursor();
+    cur_out.execute("DROP TABLE IF EXISTS equivalent");
+    cur_out.execute("DROP TABLE IF EXISTS supersets");
+    cur_out.execute("CREATE TABLE equivalent(x INT, y INT, UNIQUE(x,y))");
+    cur_out.execute("CREATE TABLE supersets(x INT, y INT, UNIQUE(x,y))");
+    cur_out.executemany("INSERT INTO equivalent VALUES(?,?)",equivalences); con_out.commit();
+    cur_out.executemany("INSERT INTO supersets VALUES(?,?)",supersets); con_out.commit(); con_out.close();
+    #------------------------------------------------
     index2node = np.where(labels==i)[0];
     node2index = { index2node[j]:j for j in range(len(index2node)) };
     tree       = forest[index2node,:][:,index2node];
@@ -97,21 +112,3 @@ for i in range(num): #num
     OUT.write("\n}");
     OUT.close();
     print(i,str(root),root_str);
-    #------------------------------------------------
-    equal             = NM.T[:,index2node].dot(NM[index2node,:]); equal.setdiag(False); equal.eliminate_zeros();
-    equivalences      = [(int(index2mentionID[fro]),int(index2mentionID[to]),) for fro,to in zip(*equal.nonzero())];
-    rep2rep           = transitive_closure(tree); rep2rep.setdiag(False); rep2rep.eliminate_zeros();
-    ment2ment         = NM.T[:,index2node].dot(rep2rep).dot(NM[index2node,:]);
-    supersets         = [(int(index2mentionID[fro]),int(index2mentionID[to]),) for fro,to in zip(*ment2ment.nonzero())];
-    if len(equivalences)==0 and len(supersets)==0:
-        continue;
-    con_out = sqlite3.connect(_pair_db+'_'+root_str+'.db'); cur_out = con_out.cursor();
-    cur_out.execute("DROP TABLE IF EXISTS equivalent");
-    cur_out.execute("DROP TABLE IF EXISTS supersets");
-    cur_out.execute("CREATE TABLE equivalent(x INT, y INT, UNIQUE(x,y))");
-    cur_out.execute("CREATE TABLE supersets(x INT, y INT, UNIQUE(x,y))");
-    cur_out.executemany("INSERT INTO equivalent VALUES(?,?)",equivalences); con_out.commit();
-    cur_out.executemany("INSERT INTO supersets VALUES(?,?)",supersets); con_out.commit(); con_out.close();
-
-
-

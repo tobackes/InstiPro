@@ -39,6 +39,10 @@ _top_k_      = None;#None if      sys.argv[9]=='0' else int(sys.argv[7]);
 _dbscan_     = False;#bool(int(    sys.argv[10]));
 _similarity_ = 'probsim';#'probsim' if sys.argv[11]=='0' else 'cosim';
 
+_verify   = False;
+_weighted = False;
+_rooted   = True;
+
 _clean_all_nodes         = True;  # All unobserved nodes are removed and their specifications split up
 _find_edges_gen          = False;
 #_slot_merge              = False;  # -nodes +sizes # If true merge only nodes with same         'slot' set in representations
@@ -72,7 +76,7 @@ _p_         = psutil.Process(os.getpid()); _mb_ = 1024*1024;
 _feat_db = _cfg['root_dir']+_cfg['feat_dir']+str(_key)+'.db';
 _sums_db = _feat_db if _cfg['sums_db'] == None else _cfg['sums_db'];
 
-_skipvals = set(['Res','Sci','Sch','Inst','Dept','Wissensch'])
+_skipvals = set([]);#set(['Res','Sci','Sch','Inst','Dept','Wissensch'])
 
 #TODO: Put the below into the type file
 _short_form = { 'institution' : 'ANY',
@@ -255,29 +259,7 @@ def color_string(R_,colors): #R_ is sparse boolean row vector with nonzero count
     string = ':'.join([' '.join([str(num) for num in colors[i]])+';'+str(round(R_[0,i]/denom,4)) for i in R_[0,_cfg['no_none']:].nonzero()[1]]); #index 0 is for None
     return string;
 
-def get_nodes_edges_(edges_in,index2node,D,colors):
-    edges    = [];
-    nodestrs = [];
-    str2dis  = dict();
-    for i in range(len(index2node)):
-        i_                       = D.node2index[index2node[i]];
-        color_str                = color_string(D.rids_b[i_],colors);
-        node_display             = '"'+str(D.obs_[i_,0])+' ('+str(round(D.obs[i_,0],1))+')  |  '+str(D.car_[i_,0])+' ('+str(round(D.car[i_,0],1))+')\n'+D.nodes[index2node[i]][STR]+'"';
-        str2dis[index2node[i]] = '"'+index2node[i]+'"';
-        if D.rids_b[i_].sum() != 0:
-            nodestrs.append('"'+index2node[i]+'" [label='+node_display+' style=striped fillcolor="'+color_str+'"]');
-        else:
-            nodestrs.append('"'+index2node[i]+'" [label='+node_display+' style="filled" fillcolor="gray"]');
-        for j in edges_in[i,:].nonzero()[1]:
-            j_                = D.node2index[index2node[j]];
-            child_display     = '"'+str(round(D.nodes[index2node[j]][OBS]))+' ('+str(round(D.obs[j_,0],1))+')  |  '+str(round(D.nodes[index2node[j]][CAR]))+' ('+str(round(D.car[j_,0],1))+')\n'+D.nodes[index2node[j]][STR]+'"';
-            can_be, should_be = can_be_merged(i_,j_,D), should_be_merged(i_,j_,D);
-            edge_color        = 'blue' if can_be and not should_be else 'green' if can_be and should_be else 'black';
-            edges.append('"'+index2node[j]+'" -> "'+index2node[i]+'" [label="'+str(round(D.weight[i_,j_],2)).strip('0')+'" dir="back" color="'+edge_color+'"]');
-    return nodestrs, edges, str2dis;
-
-def get_nodes_edges(edges_in,index2node,D,colors,verified_mentions=None):
-    edges_in = transitive_closure(edges_in);
+def get_nodes_edges(edges_in,index2node,D,colors,verified_mentions=None,weighted=False,rooted=True):
     edges    = [];
     nodestrs = [];
     str2dis  = dict();
@@ -287,16 +269,16 @@ def get_nodes_edges(edges_in,index2node,D,colors,verified_mentions=None):
         verifieds                = set([]) if verified_mentions == None else mentionIDs & set(verified_mentions.keys());
         has_verified             = len(verifieds) > 0;
         if verified_mentions!=None and not has_verified:
-            continue;
+            pass;#continue;
         i_                       = D.node2index[index2node[i]];
         color_str                = color_string(D.rids_b[i_],colors);
-        #node_display             = '"'+str(D.obs_[i_,0])+' ('+str(round(D.obs[i_,0],1))+')  |  '+str(D.car_[i_,0])+' ('+str(round(D.car[i_,0],1))+')\n'+D.nodes[index2node[i]][STR]+'"';
         strings                  = '' if verified_mentions == None else '\n-----------------\n'+'\n'.join(set((verified_mentions[mentionID] for mentionID in verifieds)));
         obs_car                  = '' if verified_mentions != None else str(int(D.obs_[i_,0]))+'  |  '+str(int(D.car_[i_,0]))+'\n';
-        node_display             = '"'+obs_car+string(D.nodes[index2node[i]][REP])+strings+'"' if has_verified else '""';
+        rep_str                  = string(D.nodes[index2node[i]][REP]) if verified_mentions==None or has_verified else '';
+        node_display             = '"'+obs_car+rep_str+strings+'"' if has_verified or verified_mentions==None else '""';
         str2dis[index2node[i]]   = '"'+str(i)+'"';
-        if (verified_mentions==None or has_verified): #and (edges_in[i,:].sum() > 0 or edges_in[:,i].sum() > 0): #Only return nodes that have at least one edge (including to itself)
-            if D.rids_b[i_].sum() != 0:
+        if (edges_in[i,:].sum() > 0 or edges_in[:,i].sum() > 0):# and (verified_mentions==None or has_verified): #Only return nodes that have at least one edge (including to itself)
+            if int(D.obs_[i_,0]) > 0:#if D.rids_b[i_].sum() != 0:
                 nodestrs.append(str(i)+' [label='+node_display+' style=striped fillcolor="'+color_str+'"]');
             else:
                 nodestrs.append(str(i)+' [label='+node_display+' style="filled" fillcolor="gray"]');
@@ -306,17 +288,17 @@ def get_nodes_edges(edges_in,index2node,D,colors,verified_mentions=None):
             verifieds_        = set([]) if verified_mentions == None else mentionIDs_ & set(verified_mentions.keys());
             has_verified_     = len(verifieds_) > 0;
             if verified_mentions!=None and not has_verified_:
-                continue;
+                pass;#continue;
             j_                = D.node2index[index2node[j]];
-            #child_display     = '"'+str(round(D.nodes[index2node[j]][OBS]))+' ('+str(round(D.obs[j_,0],1))+')  |  '+str(round(D.nodes[index2node[j]][CAR]))+' ('+str(round(D.car[j_,0],1))+')\n'+D.nodes[index2node[j]][STR]+'"';
-            strings           = '' if verified_mentions == None else '\n-----------------\n'+'\n'.join(set((verified_mentions[mentionID] for mentionID in verifieds_)));
+            strings           = '' if verified_mentions != None and not has_verified_ else '\n-----------------\n'+'\n'.join(set((verified_mentions[mentionID] for mentionID in verifieds_)));
             obs_car           = '' if verified_mentions != None else str(int(D.nodes[index2node[j]][OBS]))+'  |  '+str(int(D.nodes[index2node[j]][CAR]))+'\n';
-            child_display     = '"'+obs_car+string(D.nodes[index2node[j]][REP])+strings+'"' if has_verified_ else '""';
+            rep_str           = string(D.nodes[index2node[j]][REP]) if verified_mentions==None or has_verified_ else '';
+            child_display     = '"'+obs_car+rep_str+strings+'"' if verified_mentions != None and has_verified_ else '""';
             can_be, should_be = can_be_merged(i_,j_,D), should_be_merged(i_,j_,D);
             edge_color        = 'blue' if can_be and not should_be else 'green' if can_be and should_be else 'black';
-            edge_weight       = '' if verified_mentions != None else str(round(D.weight[i_,j_],2)).strip('0');
-            if (has_verified and has_verified_) and (verified_mentions==None or i != j):
-                edges.append(str(j)+' -> '+str(i)+' [label="'+edge_weight+'" dir="back" color="'+edge_color+'"]');
+            edge_weight       = '' if not weighted or verified_mentions != None else str(round(D.weight[i_,j_],2)).strip('0');
+            if (weighted or i!=j) and (rooted or edges_in[:,i].sum()>1):# and (verified_mentions==None or (has_verified and has_verified_)):
+                edges.append(str(j)+' -> '+str(i)+' [label="'+edge_weight+'" penwidth='+str((10*round(D.weight[i_,j_],2))**0.75)+' dir="back" color="'+edge_color+'"]');
     return nodestrs, edges, str2dis;
 
 def repID2Index(repID,cur):
@@ -373,12 +355,10 @@ def equiDB(D,I=None): #TODO: Check the memory consumption here and see if it can
     cur.executemany("UPDATE generalizations SET level=MIN(level,?) WHERE mentionIDIndex=? AND repIDIndex=?",((lev[(mentionID,repID,)],indexOfmentionID[mentionID],indexOfrepID[repID],) for mentionID,repID in lev));
     con.commit(); con.close();
 
-def draw(D,colors,I=None,TREE=False):
-    #print 'doing transitive reduction...';
-    #D.edge = transitive_reduction(D.edge); #TODO: Should this not better be put elsewhere?
+def draw(D,colors,I=None,TREE=False,verify=True,weighted=False,rooted=True):
     print('start drawing...');
     con                = sqlite3.connect(_cfg['silver_db']); cur = con.cursor();
-    verified_mentions  = dict(cur.execute("SELECT mentionID,ref_string FROM mapping WHERE verified1=1")); con.close();
+    verified_mentions  = dict(cur.execute("SELECT mentionID,ref_string FROM mapping WHERE verified1=1")) if verify else None; con.close();
     edges_, index2node = D.edge, D.index2node;
     if TREE:
         edge_    = set_diagonal(D.edge,csr(np.zeros(D.edge.shape[0]))); #Make irreflexive to get DAG
@@ -386,49 +366,33 @@ def draw(D,colors,I=None,TREE=False):
         tree     = max_span_tree(weights_);     # Make a tree from the DAG
         tree     = get_view(edge_,tree);        # Could also convert tree to boolean
         edges_   = tree;
-        #edges_, index2node = redundant_tree(D.edge,D.index2node); print edges_.shape, len(index2node)
-    #OUT = open(_cfg['viz_file']+['.graph','.tree'][TREE]+'.'+str(I),'w') if I != None else open(_cfg['viz_file'],'w');
     OUT = open(_cfg['out_dir']+'graphs/'+str(I)+'_'+_job_id+['.graph','.tree'][TREE]+'.dot','w') if I != None else open(_cfg['viz_file'],'w');
     OUT.write('digraph G {\nranksep=.3\nnodesep=.2\nnode [shape=box height=0 width=0]\n');
-    nodestrs, edges, str2dis = get_nodes_edges(edges_,index2node,D,colors,verified_mentions);
+    nodestrs, edges, str2dis = get_nodes_edges(edges_,index2node,D,colors,verified_mentions,weighted,rooted);
     for edge in edges:
         OUT.write(edge+'\n');
     for nodestr in nodestrs:
         OUT.write(nodestr+'\n');
-    #prec, rec, f1 = prec_rec_f1_([D.nodes[i][RID] for i in D.node2index]);
-    bPrec, bRec, bF1 = prec_rec_f1(D.rids_b[:,:]);
-    dPrec, dRec, dF1 = prec_rec_f1(D.rids_c[:,:]);
-    print('bPrec:',bPrec,'bRec:',bRec,'bF1:',bF1);
-    print('dPrec:',dPrec,'dRec:',dRec,'dF1:',dF1);
-    #OUT.write('"bPrec:  '+str(round(bPrec,2))+'\n\nbRec:  '+str(round(bRec,2))+'\n\nbF1:  '+str(round(bF1,2))+'\n\ndPrec:  '+str(round(dPrec,2))+'\n\ndRec:  '+str(round(dRec,2))+'\n\ndF1:  '+str(round(dF1,2)) +'" [style=filled fillcolor=grey fontsize=18]\n');
-    if False:#not TREE:
-        nodes_by_level = get_nodes_by_lat_level(D.nodes);
-        for level in nodes_by_level:
-            #print level;
-            OUT.write('{rank=same; ');
-            for node_str in nodes_by_level[level]:
-                if node_str in str2dis:
-                    #print node_str; print '---------------------------------------';
-                    OUT.write(str2dis[node_str]+'; ');
-            OUT.write('}');
+    bPrec, bRec, bF1 = prec_rec_f1(D.rids_b[:,:]); dPrec, dRec, dF1 = prec_rec_f1(D.rids_c[:,:]);
+    print('bPrec:',bPrec,'bRec:',bRec,'bF1:',bF1); print('dPrec:',dPrec,'dRec:',dRec,'dF1:',dF1);
     OUT.write('}');
     print('done drawing.');
     OUT.close();
 
-def draw_all_contexts(D,colors,I=None,TREE=False):
+def draw_all_contexts(D,colors,I=None,TREE=False,verify=False):
     edges_, index2node = D.edge, D.index2node;
     downstream         = edges_**20; # Assuming there are no longer paths than 20
     upstream           = edges_.T**20;
     for node_index in range(len(D.index2node)):
-        draw_context(D,colors,node_index,downstream,upstream,I,TREE);
+        draw_context(D,colors,node_index,downstream,upstream,I,TREE,verify);
 
-def draw_one_context(D,colors,node_index,I=None,TREE=False):
+def draw_one_context(D,colors,node_index,I=None,TREE=False,verify=False):
     edges_, index2node = D.edge, D.index2node;
     downstream         = edges_**20; # Assuming there are no longer paths than 20
     upstream           = edges_.T**20;
-    draw_context(D,colors,node_index,downstream,upstream,I,TREE);
+    draw_context(D,colors,node_index,downstream,upstream,I,TREE,verify);
 
-def draw_context(D,colors,node_index,downstream,upstream,I=None,TREE=False):
+def draw_context(D,colors,node_index,downstream,upstream,I=None,TREE=False,verify=False):
     edges_, index2node = D.edge, D.index2node;
     if True:
         downstream_ = downstream[node_index];
@@ -442,10 +406,16 @@ def draw_context(D,colors,node_index,downstream,upstream,I=None,TREE=False):
             tree     = max_span_tree(weights_);                                 # Make a tree from the DAG
             tree     = get_view(edge_,tree);                                    # Could also convert tree to boolean
             edges__  = tree;
-        filename = index2node[node_index].replace('\n','___').replace(' ','').replace(':','__').replace(',','_').replace('{','').replace('}','');
+        edges__.setdiag(0);
+        for node_index in edges__.sum(0).nonzero()[1]:
+            mentionIDs = [D.index2mentionID[mentionindex] for mentionindex in D.NM[node_index,:].nonzero()[1]];
+            print(D.index2node[node_index],'\n',mentionIDs);
+        con                      = sqlite3.connect(_cfg['silver_db']); cur = con.cursor();
+        verified_mentions        = dict(cur.execute("SELECT mentionID,ref_string FROM mapping WHERE verified1=1")) if _verify else None; con.close();
+        filename                 = index2node[node_index].replace('\n','___').replace(' ','').replace(':','__').replace(',','_').replace('{','').replace('}','');
+        nodestrs, edges, str2dis = get_nodes_edges(edges__,index2node,D,colors,verified_mentions,False,True);
         OUT      = open(_cfg['out_dir']+'graphs/'+str(I)+'_'+_job_id+['.graph','.tree'][TREE]+'.'+filename+'.dot','w') if I != None else open(_cfg['viz_file'],'w');
         OUT.write('digraph G {\nranksep=.3\nnodesep=.2\nnode [shape=box]\n');
-        nodestrs, edges, str2dis = get_nodes_edges(edges__,index2node,D,colors);
         for edge in edges:
             OUT.write(edge+'\n');
         for nodestr in nodestrs:
@@ -1999,12 +1969,29 @@ def merge_all_iteratively(D,t_start,con_out,cur_out,end=0.0):
     thr_iter = _cfg['thr']*[1,_cfg['selfprob_fac']][_weight_self]; #+0.000000000001TODO: Undo the addition if required
     if _cfg['do_results']: output(D,I,B,t_start,0,time.time()-c_time_0,thr_iter,con_out,cur_out);
     log_avg_repsize = np.log(sum([len(D.nodes[node][REP])*D.NM[D.node2index[node],:].sum() for node in D.index2node])/D.NM.sum());
-    detail_node     = D.index2node[0];
+    to_unobserved   = set( D.edge[:,(D.obs_==0).nonzero()[0]].nonzero()[0]);
+    is_observed     = set(D.obs_.nonzero()[0]);
+    to_exactly_two  = set((D.edge.sum(1)>=3).nonzero()[0]);
+    detail_nodeinds = (to_unobserved & to_exactly_two & is_observed);
+    detail_nodes    = [D.index2node[detail_nodeind] for detail_nodeind in detail_nodeinds];
+    con               = sqlite3.connect(_cfg['silver_db']); cur = con.cursor();
+    verified_mentions = dict(cur.execute("SELECT mentionID,ref_string FROM mapping WHERE verified1=1")) if _verify else None; con.close();
+    for detail_nodeind in detail_nodeinds:
+         print(detail_nodeind,'\n',D.index2node[detail_nodeind],'\n',[D.index2mentionID[mentionindex] for mentionindex in D.NM[detail_nodeind,:].nonzero()[1]],'\n-----------------------------');
     if _cfg['do_graph']:
-        draw(D,colors,I,False);
-        if detail_node in D.node2index: # Can only plot this node as long as it exists
-            draw_one_context(D,colors,D.node2index[detail_node],I,False);
-        if _cfg['do_tree']: draw(D,colors,I,True);
+        draw(D,colors,I,False,_verify,_weighted,_rooted);
+        for detail_node in detail_nodes:
+            if not detail_node in D.node2index: # Can only plot this node as long as it exists
+                continue;
+            if verified_mentions != None: # at least one node reachable from the detail nodes must be verified
+                mentionIDIndices = list(set(D.NM[D.node2index[detail_node],:].nonzero()[1])|set(D.NM[:,D.node2index[detail_node]].nonzero()[0]));
+                mentionIDs       = set([D.index2mentionID[mentionIDIndex] for mentionIDIndex in mentionIDIndices]);
+                verifieds        = set([]) if verified_mentions == None else mentionIDs & set(verified_mentions.keys());
+                has_verified     = len(verifieds) > 0;
+                if not has_verified:
+                    continue;
+            draw_one_context(D,colors,D.node2index[detail_node],I,False,_verify);
+        if _cfg['do_tree']: draw(D,colors,I,True,_verify,_weighted,_rooted);
     while thr_iter > end:
         thr_iter -= _cfg['step']*[1,_cfg['selfprob_fac']][_weight_self]; m_time_0 = time.time(); print('I =',I,'| t =',thr_iter, '| log avg rep size =', log_avg_repsize);# print len(D.index2node);
         D         = merger(D,thr_iter) if log_avg_repsize < _repsize_thr else D;
@@ -2015,10 +2002,10 @@ def merge_all_iteratively(D,t_start,con_out,cur_out,end=0.0):
         if _cfg['do_results']: output(D,I,B,t_start,m_time,c_time,thr_iter,con_out,cur_out);
         if _cfg['do_json']: tojson(D,I);
         if _cfg['do_graph']:
-            draw(D,colors,I,False);
-            if detail_node in D.node2index: # Can only plot this node as long as it exists
-                draw_one_context(D,colors,D.node2index[detail_node],I,False);
-        if _cfg['do_tree']: draw(D,colors,I,True);
+            draw(D,colors,I,False,_verify,_weighted,_rooted);
+            #if detail_node in D.node2index: # Can only plot this node as long as it exists
+                #draw_one_context(D,colors,D.node2index[detail_node],I,False,_verify);
+        if _cfg['do_tree']: draw(D,colors,I,True,_verify,_weighted,_rooted);
         if _cfg['do_equiDB']: equiDB(D,I);
     output_relations(D);
 

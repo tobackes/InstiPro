@@ -73,7 +73,8 @@ _feat_db = _cfg['root_dir']+_cfg['feat_dir']+str(_key)+'.db';
 _sums_db = _feat_db if _cfg['sums_db'] == None else _cfg['sums_db'];
 
 #TODO: Put the below into the type file
-_short_form = { 'university'  : 'UNI',
+_short_form = { 'institution' : 'ANY',
+                'university'  : 'UNI',
                 'academy'     : 'ACAD',
                 'agency'      : 'AGCY',
                 'association' : 'ASSOC',
@@ -86,14 +87,16 @@ _short_form = { 'university'  : 'UNI',
                 'faculty'     : 'FAC',
                 'center'      : 'CTR',
                 'site'        : 'SITE',
-                'other'       : '',
+                'other'       : 'OTHER',
                 'field'       : 'FIELD',
                 'institute'   : 'INST',
                 'subfield'    : 'SUBFIELD',
                 'subject'     : 'SUBJ',
                 'community'   : 'GRP',
                 'chair'       : 'CHAIR',
-                'address'     : 'ADDR'}
+                'division'    : 'DEPT',
+                'country'     : 'COUNTRY',
+                'city'        : 'CITY'}
 #---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 #-CLASSES---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 class DATA:

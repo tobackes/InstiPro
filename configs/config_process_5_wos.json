@@ -1,0 +1,51 @@
+{
+    "root_dir":     "",
+    "lat_file":     "mappings/6/lattice.db",
+    "viz_file":     "plots/semilattice.dot",
+    "typ_file":     "mappings/6/types.txt",
+    "con_file":     "mappings/6/constraints.txt",
+    "name_db":      "representations/6/institutions/wos.db",
+    "silver_db":    "resources/dfg_wos_silver_standard.db",
+    "pair_db":      "output/relations_pos.db",
+    "feat_dir":     "features/",
+    "out_dir":      "output/wos/",
+    "result_dir":   "results/",
+    "sums_db":      null,
+
+    "do_json":      false,
+    "do_results":   false,
+    "do_graph":     true,
+    "do_tree":      true,
+    "do_equiDB":    false,
+
+    "is_names":     false,
+    "aggregate":    false,
+
+    "only_rIDs":    false,
+    "no_none":      false,
+
+    "mode":         "merge_all",
+    "same_file":    "features/similarities_same.txt",
+    "diff_file":    "features/similarities_diff.txt",
+
+    "shortcut":     false,
+
+    "smooth":       0.0000001,
+    "thr":          1.0,
+    "selfprob_fac": 0.1,
+    "min_pts":      2,
+    "num_rdm":      1,
+
+    "step":         0.1,
+    "max_size":     999999999,
+
+    "hack":         1000.0,
+
+    "thr_f":        "logi",
+
+    "eps":          0.03,
+    "z":            0.075,
+    "r":            0.075,
+
+    "tuning":       false
+}

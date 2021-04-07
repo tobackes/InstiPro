@@ -171,7 +171,7 @@ def classify(components,geo_cur): # Determine possible labels for each component
     return classified;
 
 def decide(labels,component): # Determine one label if multiple labels are proposed for one component
-    if len(labels) > 1 and labels[-1] =='clinic' and _level[labels[-2]] >= _level['clinic'] and ('Klin_' in component or 'Clin_' in component):
+    if len(labels) > 1 and labels[-1] =='clinic' and labels[-2] in _level and _level[labels[-2]] >= _level['clinic'] and ('Klin_' in component or 'Clin_' in component):
         return [(labels[-2],component,)];
     #TODO: Implement here a way to detect if there are maybe legitimitely multiple components and return them
     return [(labels[-1],component,)];

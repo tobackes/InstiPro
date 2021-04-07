@@ -84,7 +84,7 @@ def work(Q,cur_out,con_out,cur_in):
                             addr_obj['city'],
                             addr_obj['country'],
                             addr_obj['zip'],
-                            doc['_source']['pub_info']['pubyear'] if 'pub_info' in doc['_souce'] and 'pubyear' in doc['_source']['pub_info'] else None
+                            doc['_source']['pub_info']['pubyear'] if 'pub_info' in doc['_source'] and 'pubyear' in doc['_source']['pub_info'] else None
                         )
                             for doc in page['hits']['hits'] for addr_obj in doc['_source']['addressInformation']['address'] ] if WOS else [ ( doc['_source']['ADDRESS_FULL'],
                                                                                                                                               int(doc['_source']['PK_KB_INST']),
